@@ -36,7 +36,8 @@ class SaveService {
       final raw = _box?.get(_slotKey);
       if (raw == null) return null;
       return SaveModel.fromJson(
-          Map<String, dynamic>.from(jsonDecode(raw) as Map));
+        Map<String, dynamic>.from(jsonDecode(raw) as Map),
+      );
     } catch (e) {
       GameLogger.error('Save', 'Failed to load', e);
       return null;

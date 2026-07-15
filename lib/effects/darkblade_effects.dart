@@ -87,13 +87,9 @@ class DarkbladeAura extends PositionComponent {
   @override
   void render(Canvas canvas) {
     final pulse = sin(_timer * 4) * 0.15 + 0.85;
-    final paint1 = Paint()
-      ..color = _color.withValues(alpha: 0.08 * pulse)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, _radius * 0.3);
+    final paint1 = Paint()..color = _color.withValues(alpha: 0.08 * pulse);
     canvas.drawCircle(Offset.zero, _radius * pulse, paint1);
-    final paint2 = Paint()
-      ..color = _color.withValues(alpha: 0.04)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, _radius * 0.5);
+    final paint2 = Paint()..color = _color.withValues(alpha: 0.04);
     canvas.drawCircle(Offset.zero, _radius * 1.6 * pulse, paint2);
   }
 }
@@ -130,13 +126,10 @@ class DarkEnergyBurst extends PositionComponent {
     final progress = (_timer / _duration).clamp(0.0, 1.0);
     final radius = _startRadius + (_maxRadius - _startRadius) * progress;
     final alpha = (1 - progress) * 0.6;
-    final paint = Paint()
-      ..color = _color.withValues(alpha: alpha)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.3);
+    final paint = Paint()..color = _color.withValues(alpha: alpha);
     canvas.drawCircle(Offset.zero, radius, paint);
     final paint2 = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.5)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.1);
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: alpha * 0.5);
     canvas.drawCircle(Offset.zero, radius * 0.3, paint2);
   }
 }
@@ -181,10 +174,9 @@ class HitSparks extends PositionComponent {
 
   @override
   void render(Canvas canvas) {
+    final paint = Paint();
     for (final s in _sparks) {
-      final paint = Paint()
-        ..color = s.color.withValues(alpha: (s.life / 0.5).clamp(0.0, 1.0))
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2);
+      paint.color = s.color.withValues(alpha: (s.life / 0.5).clamp(0.0, 1.0));
       canvas.drawCircle(Offset(s.x, s.y), s.size, paint);
     }
   }
@@ -205,8 +197,7 @@ class _Spark {
 class BloodSpatter extends PositionComponent {
   final List<_BloodDrop> _drops = [];
   final Random _rng = Random();
-  final Paint _paint = Paint()
-    ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2);
+  final Paint _paint = Paint();
   double _life = 0.8;
 
   BloodSpatter({required super.position, int count = 10}) {

@@ -63,8 +63,7 @@ class EnemyAi {
 
   void update(AiContext ctx) {
     if (state == EnemyState.dead) return;
-    _patrolOriginX =
-        _patrolOriginX.isNaN ? host.position.x : _patrolOriginX;
+    _patrolOriginX = _patrolOriginX.isNaN ? host.position.x : _patrolOriginX;
     stateTimer += ctx.dt;
 
     switch (state) {

@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 import '../game/darkblade_game.dart';
 
@@ -13,11 +14,10 @@ class TouchControls extends StatefulWidget {
 }
 
 class _TouchControlsState extends State<TouchControls> {
-  static const _refreshInterval = Duration(milliseconds: 50);
+  static const _refreshInterval = Duration(milliseconds: 200);
 
   DarkbladeGame get game => widget.game;
-  late final Ticker _ticker;
-  Duration _lastRefresh = Duration.zero;
+  Timer? _refreshTimer;
   bool _wasActive = false;
 
   bool get _active =>
@@ -28,24 +28,22 @@ class _TouchControlsState extends State<TouchControls> {
   @override
   void initState() {
     super.initState();
-    _ticker = Ticker(_tick)..start();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) => _tick());
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _refreshTimer?.cancel();
     _releaseAll();
     super.dispose();
   }
 
-  void _tick(Duration elapsed) {
+  void _tick() {
     if (!mounted) return;
     final active = _active;
     if (_wasActive && !active) _releaseAll();
-    if (active && elapsed - _lastRefresh < _refreshInterval) return;
     if (!active && active == _wasActive) return;
     _wasActive = active;
-    _lastRefresh = elapsed;
     setState(() {});
   }
 
@@ -74,16 +72,16 @@ class _TouchControlsState extends State<TouchControls> {
         children: [
           // --------------------------------------------------- left: move
           Positioned(
-            left: 12,
+            left: 50,
             bottom: 24,
             child: Row(
               children: [
                 _holdButton(
-                  size: 76,
+                  size: 85,
                   child: const Icon(
                     Icons.arrow_left,
                     color: Colors.white60,
-                    size: 56,
+                    size: 60,
                   ),
                   onDown: () => c.touchMoveDirection = -1,
                   onUp: () {
@@ -92,11 +90,11 @@ class _TouchControlsState extends State<TouchControls> {
                 ),
                 const SizedBox(width: 12),
                 _holdButton(
-                  size: 76,
+                  size: 85,
                   child: const Icon(
                     Icons.arrow_right,
                     color: Colors.white60,
-                    size: 56,
+                    size: 60,
                   ),
                   onDown: () => c.touchMoveDirection = 1,
                   onUp: () {
@@ -106,6 +104,22 @@ class _TouchControlsState extends State<TouchControls> {
               ],
             ),
           ),
+          if (game.canInteract.value)
+            Positioned(
+              right: 22,
+              bottom: 300,
+              child: _holdButton(
+                size: 58,
+                label: 'TALK',
+                child: const Icon(
+                  Icons.chat_bubble_outline,
+                  color: Color(0xFFB388FF),
+                  size: 22,
+                ),
+                onDown: game.interactWithNpc,
+                onUp: () {},
+              ),
+            ),
 
           // ---------------------------------------------------- top-right: menu
           Positioned(
@@ -131,10 +145,10 @@ class _TouchControlsState extends State<TouchControls> {
                 children: [
                   // BLOCK - đỉnh vòng cung
                   Positioned(
-                    right: 52,
-                    bottom: 102,
+                    right: 45,
+                    bottom: 110,
                     child: _holdButton(
-                      size: 58,
+                      size: 70,
                       label: 'BLOCK',
                       child: const Icon(
                         Icons.shield,
@@ -147,10 +161,10 @@ class _TouchControlsState extends State<TouchControls> {
                   ),
                   // SKILL - giữa vòng cung
                   Positioned(
-                    right: 118,
-                    bottom: 68,
+                    right: 115,
+                    bottom: 75,
                     child: _holdButton(
-                      size: 58,
+                      size: 70,
                       label: 'SKILL',
                       ready: game.player.skillCooldownRatio <= 0,
                       child: const Icon(
@@ -167,7 +181,7 @@ class _TouchControlsState extends State<TouchControls> {
                     right: 50,
                     bottom: 4,
                     child: _holdButton(
-                      size: 76,
+                      size: 85,
                       label: 'JUMP',
                       child: const Icon(
                         Icons.arrow_upward,
@@ -180,10 +194,10 @@ class _TouchControlsState extends State<TouchControls> {
                   ),
                   // ATTACK - cạnh trái JUMP
                   Positioned(
-                    right: 145,
+                    right: 150,
                     bottom: 4,
                     child: _holdButton(
-                      size: 58,
+                      size: 70,
                       label: 'ATTACK',
                       child: const Icon(
                         Icons.gavel,
@@ -196,10 +210,10 @@ class _TouchControlsState extends State<TouchControls> {
                   ),
                   // DASH - cạnh trái ATTACK
                   Positioned(
-                    right: 210,
+                    right: 240,
                     bottom: 4,
                     child: _holdButton(
-                      size: 58,
+                      size: 45,
                       label: 'DASH',
                       ready: game.player.dashCooldownRatio <= 0,
                       child: const Icon(
@@ -213,18 +227,35 @@ class _TouchControlsState extends State<TouchControls> {
                   ),
                   // POTION - cạnh trái DASH
                   Positioned(
-                    right: 275,
+                    right: 295,
                     bottom: 4,
-                    child: _holdButton(
-                      size: 58,
-                      label: 'POTION',
-                      child: const Icon(
-                        Icons.local_drink,
-                        color: Color(0xFFE05252),
-                        size: 22,
+                    child: _tapButton(
+                      size: 45,
+                      label: 'POTION ×${game.potionCount}',
+                      ready: game.canUsePotion,
+                      onTap: game.useEquippedPotion,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Icon(
+                            Icons.local_drink,
+                            color: Color(0xFFE05252),
+                            size: 22,
+                          ),
+                          Positioned(
+                            right: 8,
+                            bottom: 6,
+                            child: Text(
+                              '${game.potionCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      onDown: () => c.touchPotionHeld = true,
-                      onUp: () => c.touchPotionHeld = false,
                     ),
                   ),
                 ],
@@ -293,6 +324,48 @@ class _TouchControlsState extends State<TouchControls> {
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _tapButton({
+    required double size,
+    required Widget child,
+    required VoidCallback onTap,
+    required String label,
+    bool ready = true,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: ready ? onTap : null,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.22),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: ready ? const Color(0x99E05252) : Colors.white10,
+                width: 2,
+              ),
+            ),
+            child: Opacity(opacity: ready ? 0.75 : 0.30, child: child),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: ready ? Colors.white54 : Colors.white24,
+              fontSize: 8,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
       ],
     );
   }

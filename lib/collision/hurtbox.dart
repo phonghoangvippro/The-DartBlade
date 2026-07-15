@@ -1,4 +1,5 @@
 import 'package:flame/collisions.dart';
+import 'package:flame/components.dart';
 
 import '../combat/damage.dart';
 
@@ -14,15 +15,14 @@ abstract class Damageable {
 
 /// Receiving collision volume attached to a [Damageable] owner (FR-011).
 class Hurtbox extends RectangleHitbox {
-  Hurtbox({
-    required this.owner,
-    super.position,
-    super.size,
-    super.anchor,
-  }) {
+  Hurtbox({required this.owner, super.position, super.size, super.anchor}) {
     // Hurtboxes never initiate collision resolution themselves.
     collisionType = CollisionType.passive;
   }
 
   final Damageable owner;
+
+  @override
+  bool onComponentTypeCheck(PositionComponent other) =>
+      other is! Hurtbox && super.onComponentTypeCheck(other);
 }

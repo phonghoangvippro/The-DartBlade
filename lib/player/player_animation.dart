@@ -58,19 +58,19 @@ class PlayerAnimator {
       return;
     }
 
-    // DarkBlade aura (always present)
+    // A translucent aura is substantially cheaper than a runtime blur.
     final auraAlpha = 0.04 + sin(t * 2.5) * 0.02;
     canvas.drawCircle(
       Offset(w * 0.25, h * 0.4 + bob),
       w * 0.6,
-      Paint()
-        ..color = _bladeGlow.withValues(alpha: auraAlpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20),
+      Paint()..color = _bladeGlow.withValues(alpha: auraAlpha),
     );
 
     // Cloak
     final cloakPaint = Paint()..color = _cloakColor;
-    final cloakSway = state == PlayerState.run ? sin(t * 12) * 4 : sin(t * 2) * 2;
+    final cloakSway = state == PlayerState.run
+        ? sin(t * 12) * 4
+        : sin(t * 2) * 2;
     final cloakPath = Path()
       ..moveTo(w * 0.1, h * 0.25 + bob)
       ..lineTo(w * 0.2 + cloakSway, h * 0.9 + bob)
@@ -82,19 +82,23 @@ class PlayerAnimator {
     // Legs
     final legSwing = state == PlayerState.run ? sin(t * 14) * 5 : 0.0;
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.28 + legSwing, h * 0.62, 6, h * 0.38),
-        Paint()..color = _leatherColor);
+      Rect.fromLTWH(w * 0.28 + legSwing, h * 0.62, 6, h * 0.38),
+      Paint()..color = _leatherColor,
+    );
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.55 - legSwing, h * 0.62, 6, h * 0.38),
-        Paint()..color = _leatherColor);
+      Rect.fromLTWH(w * 0.55 - legSwing, h * 0.62, 6, h * 0.38),
+      Paint()..color = _leatherColor,
+    );
 
     // Boots
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.26 + legSwing, h * 0.88, 10, h * 0.12),
-        Paint()..color = const Color(0xFF1A1A1A));
+      Rect.fromLTWH(w * 0.26 + legSwing, h * 0.88, 10, h * 0.12),
+      Paint()..color = const Color(0xFF1A1A1A),
+    );
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.53 - legSwing, h * 0.88, 10, h * 0.12),
-        Paint()..color = const Color(0xFF1A1A1A));
+      Rect.fromLTWH(w * 0.53 - legSwing, h * 0.88, 10, h * 0.12),
+      Paint()..color = const Color(0xFF1A1A1A),
+    );
 
     // Torso (leather armor + metal)
     canvas.drawRRect(
@@ -134,20 +138,24 @@ class PlayerAnimator {
 
     // Arms
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.05, h * 0.32 + bob, w * 0.12, h * 0.26),
-        Paint()..color = _leatherColor);
+      Rect.fromLTWH(w * 0.05, h * 0.32 + bob, w * 0.12, h * 0.26),
+      Paint()..color = _leatherColor,
+    );
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.83, h * 0.32 + bob, w * 0.12, h * 0.26),
-        Paint()..color = _leatherColor);
+      Rect.fromLTWH(w * 0.83, h * 0.32 + bob, w * 0.12, h * 0.26),
+      Paint()..color = _leatherColor,
+    );
 
     // Head
     canvas.drawCircle(
-        Offset(w * 0.5, h * 0.18 + bob), w * 0.18, Paint()..color = _skinColor);
+      Offset(w * 0.5, h * 0.18 + bob),
+      w * 0.18,
+      Paint()..color = _skinColor,
+    );
 
     // Hair
     final hairPaint = Paint()..color = _hairColor;
-    canvas.drawCircle(
-        Offset(w * 0.5, h * 0.14 + bob), w * 0.19, hairPaint);
+    canvas.drawCircle(Offset(w * 0.5, h * 0.14 + bob), w * 0.19, hairPaint);
     // Hair fringe
     canvas.drawRect(
       Rect.fromLTWH(w * 0.32, h * 0.12 + bob, w * 0.18, h * 0.08),
@@ -164,7 +172,8 @@ class PlayerAnimator {
     );
 
     // Eyes
-    final eyeIsDark = state == PlayerState.attack1 ||
+    final eyeIsDark =
+        state == PlayerState.attack1 ||
         state == PlayerState.attack2 ||
         state == PlayerState.attack3 ||
         state == PlayerState.hurt;
@@ -172,15 +181,20 @@ class PlayerAnimator {
         ? const Color(0xFFFF2244)
         : const Color(0xFFC0B8B0);
     canvas.drawCircle(
-        Offset(w * 0.44, h * 0.17 + bob), 2, Paint()..color = eyeColor);
+      Offset(w * 0.44, h * 0.17 + bob),
+      2,
+      Paint()..color = eyeColor,
+    );
     canvas.drawCircle(
-        Offset(w * 0.56, h * 0.17 + bob), 2, Paint()..color = eyeColor);
+      Offset(w * 0.56, h * 0.17 + bob),
+      2,
+      Paint()..color = eyeColor,
+    );
 
     // DarkBlade glow on eyes when attacking
     if (eyeIsDark) {
       final glow = Paint()
-        ..color = _bladeGlow.withValues(alpha: 0.3 + sin(t * 5) * 0.2)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
+        ..color = _bladeGlow.withValues(alpha: 0.3 + sin(t * 5) * 0.2);
       canvas.drawCircle(Offset(w * 0.44, h * 0.17 + bob), 4, glow);
       canvas.drawCircle(Offset(w * 0.56, h * 0.17 + bob), 4, glow);
     }
@@ -199,8 +213,7 @@ class PlayerAnimator {
     // =================================================================
     final bladePaint = Paint()..color = _bladeColor;
     final glowPaint = Paint()
-      ..color = _bladeGlow.withValues(alpha: 0.4 + sin(t * 3) * 0.15)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      ..color = _bladeGlow.withValues(alpha: 0.4 + sin(t * 3) * 0.15);
     final lavaPaint = Paint()..color = _bladeLava;
 
     if (state.isAttacking) {
@@ -217,9 +230,7 @@ class PlayerAnimator {
       // Trail effect
       canvas.drawRect(
         Rect.fromLTWH(-5, -4, w * 1.3, 8),
-        Paint()
-          ..color = _bladeGlow.withValues(alpha: swingAlpha * 0.3)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8),
+        Paint()..color = _bladeGlow.withValues(alpha: swingAlpha * 0.18),
       );
 
       // Blade glow
@@ -227,22 +238,29 @@ class PlayerAnimator {
       // Blade core
       canvas.drawRect(Rect.fromLTWH(0, -2, w * 1.15, 4), bladePaint);
       // Lava cracks
-      canvas.drawLine(Offset(w * 0.2, 0), Offset(w * 0.8, 0),
-          lavaPaint..strokeWidth = 1.5);
-      canvas.drawLine(Offset(w * 0.1, -1), Offset(w * 0.4, 1),
-          lavaPaint..strokeWidth = 1);
+      canvas.drawLine(
+        Offset(w * 0.2, 0),
+        Offset(w * 0.8, 0),
+        lavaPaint..strokeWidth = 1.5,
+      );
+      canvas.drawLine(
+        Offset(w * 0.1, -1),
+        Offset(w * 0.4, 1),
+        lavaPaint..strokeWidth = 1,
+      );
 
       // Guard
-      canvas.drawRect(Rect.fromLTWH(-3, -5, 6, 10),
-          Paint()..color = const Color(0xFF4A3A2A));
+      canvas.drawRect(
+        Rect.fromLTWH(-3, -5, 6, 10),
+        Paint()..color = const Color(0xFF4A3A2A),
+      );
 
       canvas.restore();
 
       // Swing trail particles
       if (attackProgress > 0.1 && attackProgress < 0.9) {
         final trailPaint = Paint()
-          ..color = _bladeGlow.withValues(alpha: swingAlpha * 0.15)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6);
+          ..color = _bladeGlow.withValues(alpha: swingAlpha * 0.12);
         canvas.drawCircle(
           Offset(w * 0.8, h * 0.25 + bob + attackProgress * h * 0.3),
           w * 0.1,
@@ -256,11 +274,16 @@ class PlayerAnimator {
       canvas.drawRect(Rect.fromLTWH(0, 0, 5, h * 0.6), glowPaint);
       canvas.drawRect(Rect.fromLTWH(1, 0, 3, h * 0.6), bladePaint);
       // Lava vein
-      canvas.drawLine(Offset(2, h * 0.1), Offset(2, h * 0.5),
-          lavaPaint..strokeWidth = 1.5);
+      canvas.drawLine(
+        Offset(2, h * 0.1),
+        Offset(2, h * 0.5),
+        lavaPaint..strokeWidth = 1.5,
+      );
       // Guard
-      canvas.drawRect(Rect.fromLTWH(-3, -2, 6, 6),
-          Paint()..color = const Color(0xFF4A3A2A));
+      canvas.drawRect(
+        Rect.fromLTWH(-3, -2, 6, 6),
+        Paint()..color = const Color(0xFF4A3A2A),
+      );
       canvas.restore();
     } else if (state == PlayerState.dash) {
       // Blade extended forward
@@ -269,14 +292,15 @@ class PlayerAnimator {
       canvas.rotate(-pi / 6);
       canvas.drawRect(Rect.fromLTWH(0, -2.5, w * 1.1, 5), glowPaint);
       canvas.drawRect(Rect.fromLTWH(0, -1.5, w * 1.05, 3), bladePaint);
-      canvas.drawLine(Offset(w * 0.15, 0), Offset(w * 0.75, 0),
-          lavaPaint..strokeWidth = 1.5);
+      canvas.drawLine(
+        Offset(w * 0.15, 0),
+        Offset(w * 0.75, 0),
+        lavaPaint..strokeWidth = 1.5,
+      );
       canvas.restore();
 
       // Dash trail
-      final trail = Paint()
-        ..color = _bladeGlow.withValues(alpha: 0.15)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8);
+      final trail = Paint()..color = _bladeGlow.withValues(alpha: 0.12);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(-w * 0.3, h * 0.2, w * 0.4, h * 0.6),
@@ -291,19 +315,24 @@ class PlayerAnimator {
       canvas.rotate(-pi / 3.4);
 
       // Back glow
-      canvas.drawRect(Rect.fromLTWH(-2, -3, w * 1.0, 6),
-          Paint()
-            ..color = _bladeGlow.withValues(alpha: 0.15)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6));
+      canvas.drawRect(
+        Rect.fromLTWH(-2, -3, w * 1.0, 6),
+        Paint()..color = _bladeGlow.withValues(alpha: 0.10),
+      );
       // Blade
       canvas.drawRect(Rect.fromLTWH(0, -2, w * 0.95, 4), glowPaint);
       canvas.drawRect(Rect.fromLTWH(0, -1.2, w * 0.9, 2.6), bladePaint);
       // Lava crack
-      canvas.drawLine(Offset(w * 0.1, 0), Offset(w * 0.6, 0),
-          lavaPaint..strokeWidth = 1);
+      canvas.drawLine(
+        Offset(w * 0.1, 0),
+        Offset(w * 0.6, 0),
+        lavaPaint..strokeWidth = 1,
+      );
       // Guard
-      canvas.drawRect(Rect.fromLTWH(-3, -4, 6, 8),
-          Paint()..color = const Color(0xFF4A3A2A));
+      canvas.drawRect(
+        Rect.fromLTWH(-3, -4, 6, 8),
+        Paint()..color = const Color(0xFF4A3A2A),
+      );
 
       canvas.restore();
     }

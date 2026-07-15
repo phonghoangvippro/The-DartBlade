@@ -11,7 +11,6 @@ import '../core/constants/game_constants.dart';
 import '../core/services/audio_service.dart';
 import '../entities/character.dart';
 import '../game/darkblade_game.dart';
-import '../weapon/blade_wave.dart';
 import 'player_animation.dart';
 import 'player_controller.dart';
 import 'player_state.dart';
@@ -51,7 +50,7 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
   late final Hurtbox _hurtbox;
 
   Vector2 respawnPoint = Vector2.zero();
-  bool unlockDash = false;
+  bool unlockDash = true;
 
   @override
   String get faction => 'player';
@@ -145,9 +144,8 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
       return;
     }
 
-    // Dash (FR-005) - unlocked after defeating Fallen Knight.
+    // Dash (FR-005).
     if (c.dashPressed &&
-        unlockDash &&
         _dashCooldown <= 0 &&
         stats.spendStamina(GameConfig.dashStaminaCost)) {
       _startDash();
@@ -201,12 +199,10 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
       attack: stats.attack,
       skillMultiplier: GameConfig.skillMultiplier,
     );
-    game.gameWorld.add(
-      BladeWave(
-        position: absoluteCenter + Vector2(facing * 24, -4),
-        direction: facing,
-        damage: result.amount,
-      ),
+    game.spawnBladeWave(
+      position: absoluteCenter + Vector2(facing * 24, -4),
+      direction: facing,
+      damage: result.amount,
     );
     AudioService.instance.playSfx('skill.wav');
   }
@@ -282,19 +278,24 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
   void receiveDamage(DamageInfo info) {
     if (isDead || isInvincible) return;
 
+    final sourcePosition = info.sourcePosition;
+    final facingIncomingHit = sourcePosition != null
+        ? (sourcePosition.x >= absoluteCenter.x ? facing > 0 : facing < 0)
+        : (info.knockbackDirection > 0 ? facing < 0 : facing > 0);
     final blocking =
         state == PlayerState.block &&
         // Must face the attack to block it.
-        (info.knockbackDirection > 0 ? facing < 0 : facing > 0);
+        facingIncomingHit;
+
+    if (blocking) {
+      stats.spendStamina(info.amount * GameConfig.blockStaminaFactor);
+      AudioService.instance.playSfx('block.wav');
+      invincibleTimer = 0.08;
+      return;
+    }
 
     var amount = info.amount - stats.defense;
     if (amount < 1) amount = 1;
-    if (blocking) {
-      amount *= (1 - GameConfig.blockDamageReduction);
-      stats.spendStamina(info.amount * GameConfig.blockStaminaFactor);
-      AudioService.instance.playSfx('block.wav');
-    }
-
     health.damage(amount);
     game.onPlayerDamaged(amount);
 

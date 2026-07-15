@@ -39,8 +39,9 @@ class DarkbladeApp extends StatefulWidget {
 }
 
 class _DarkbladeAppState extends State<DarkbladeApp> {
-  late final DarkbladeGame _game =
-      DarkbladeGame(saveService: widget.saveService);
+  late final DarkbladeGame _game = DarkbladeGame(
+    saveService: widget.saveService,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -54,22 +55,18 @@ class _DarkbladeAppState extends State<DarkbladeApp> {
             GameWidget<DarkbladeGame>(
               game: _game,
               overlayBuilderMap: {
-                OverlayIds.mainMenu: (context, game) =>
-                    MainMenu(game: game),
-                OverlayIds.pauseMenu: (context, game) =>
-                    PauseMenu(game: game),
+                OverlayIds.mainMenu: (context, game) => MainMenu(game: game),
+                OverlayIds.pauseMenu: (context, game) => PauseMenu(game: game),
                 OverlayIds.settingsMenu: (context, game) =>
                     SettingsMenu(game: game),
                 OverlayIds.gameOver: (context, game) =>
                     GameOverMenu(game: game),
-                OverlayIds.victory: (context, game) =>
-                    VictoryMenu(game: game),
+                OverlayIds.victory: (context, game) => VictoryMenu(game: game),
                 OverlayIds.inventory: (context, game) =>
                     InventoryMenu(game: game),
               },
               loadingBuilder: (context) => const Center(
-                child:
-                    CircularProgressIndicator(color: Color(0xFF7B2FF2)),
+                child: CircularProgressIndicator(color: Color(0xFF7B2FF2)),
               ),
             ),
             Positioned.fill(child: Hud(game: _game)),

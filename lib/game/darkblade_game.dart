@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flame/components.dart' hide Timer;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -21,6 +20,8 @@ import '../story/dialogue.dart';
 import '../world/damage_number.dart';
 import '../world/level.dart';
 import '../world/level_data.dart';
+import '../world/npc.dart';
+import '../weapon/blade_wave.dart';
 import 'game_camera.dart';
 
 enum GamePhase { menu, playing, paused, gameOver, victory, cutscene, dialogue }
@@ -28,6 +29,9 @@ enum GamePhase { menu, playing, paused, gameOver, victory, cutscene, dialogue }
 class DarkbladeGame extends FlameGame
     with HasKeyboardHandlerComponents, HasCollisionDetection, TapCallbacks {
   DarkbladeGame({required this.saveService});
+
+  static const double _resumeSpikeDt = 0.25;
+  static const double _resumeRecoveryDt = 1 / 60;
 
   final SaveService saveService;
   final Inventory inventory = Inventory();
@@ -40,6 +44,7 @@ class DarkbladeGame extends FlameGame
   Level? currentLevel;
   int currentLevelIndex = 0;
   final Set<int> defeatedBosses = {};
+  final Set<String> defeatedEnemies = {};
 
   GamePhase phase = GamePhase.menu;
 
@@ -50,8 +55,17 @@ class DarkbladeGame extends FlameGame
   final ValueNotifier<Boss?> activeBoss = ValueNotifier(null);
   final ValueNotifier<String?> toast = ValueNotifier(null);
   Timer? _toastTimer;
-
-  bool _introPlayed = false;
+  Timer? _saveTimer;
+  final ValueNotifier<bool> canInteract = ValueNotifier(false);
+  Npc? _nearbyNpc;
+  double _nearbyNpcDistance = double.infinity;
+  double fps = 0;
+  double _fpsElapsed = 0;
+  int _fpsFrames = 0;
+  bool lowFpsMode = false;
+  int _qualityRecoverySamples = 0;
+  static const int _maxPooledBladeWaves = 32;
+  final List<BladeWave> _bladeWavePool = [];
 
   World get gameWorld => world;
 
@@ -64,9 +78,51 @@ class DarkbladeGame extends FlameGame
     camera = CameraComponent(world: world);
     cameraController = GameCameraController(camera);
 
+    await AudioService.instance.preload();
+
     pauseEngine();
     overlays.add(OverlayIds.mainMenu);
     AudioService.instance.playMusic('theme.wav');
+  }
+
+  void spawnBladeWave({
+    required Vector2 position,
+    required int direction,
+    required double damage,
+    String faction = 'player',
+    double maxDistance = 380,
+    Color color = const Color(0xFF7B2FF2),
+    double velocityY = 0,
+  }) {
+    final wave =
+        _bladeWavePool.isEmpty
+              ? BladeWave(
+                  position: position,
+                  direction: direction,
+                  damage: damage,
+                  faction: faction,
+                  maxDistance: maxDistance,
+                  color: color,
+                  velocityY: velocityY,
+                )
+              : _bladeWavePool.removeLast()
+          ..reset(
+            position: position,
+            direction: direction,
+            damage: damage,
+            faction: faction,
+            maxDistance: maxDistance,
+            color: color,
+            velocityY: velocityY,
+          );
+    gameWorld.add(wave);
+  }
+
+  void recycleBladeWave(BladeWave wave) {
+    if (_bladeWavePool.length < _maxPooledBladeWaves &&
+        !_bladeWavePool.contains(wave)) {
+      _bladeWavePool.add(wave);
+    }
   }
 
   // -------------------------------------------------------------- game flow
@@ -75,7 +131,7 @@ class DarkbladeGame extends FlameGame
     inventory.clear();
     inventory.addItem(Item.healthPotion, 3);
     defeatedBosses.clear();
-    _introPlayed = false;
+    defeatedEnemies.clear();
     await _loadLevel(0);
     _playIntro();
   }
@@ -89,8 +145,11 @@ class DarkbladeGame extends FlameGame
     defeatedBosses
       ..clear()
       ..addAll(save.defeatedBosses);
-    player.unlockDash = save.unlockDash;
+    defeatedEnemies
+      ..clear()
+      ..addAll(save.defeatedEnemies);
     await _loadLevel(save.currentLevel);
+    player.unlockDash = true;
     player.position = Vector2(save.playerX, save.playerY);
     player.respawnPoint = player.position.clone();
     player.health.current = save.hp.clamp(1, player.health.max);
@@ -104,15 +163,11 @@ class DarkbladeGame extends FlameGame
   }
 
   void _playIntro() {
-    if (_introPlayed) {
-      _beginPlay();
-      return;
-    }
-    _introPlayed = true;
     phase = GamePhase.cutscene;
     overlays.remove(OverlayIds.mainMenu);
     resumeEngine();
     final cutscene = IntroCutscene(
+      scenes: Levels.all[currentLevelIndex].cinematic,
       onComplete: () {
         _showChapterTitle();
       },
@@ -149,8 +204,25 @@ class DarkbladeGame extends FlameGame
   }
 
   Future<void> _loadLevel(int index) async {
-    world.removeAll(world.children.toList());
+    playerReady = false;
+    final oldWorldChildren = world.children.toList(growable: false);
+    final oldCutscenes = camera.viewport.children
+        .whereType<IntroCutscene>()
+        .toList(growable: false);
+    world.removeAll(oldWorldChildren);
+    camera.viewport.removeAll(oldCutscenes);
+
+    // Flame schedules removals for the next lifecycle pass. Wait until the
+    // old level has disposed its cached background and all old hitboxes have
+    // left collision detection before mounting the next level.
+    if (oldWorldChildren.isNotEmpty || oldCutscenes.isNotEmpty) {
+      if (paused) resumeEngine();
+      await lifecycleEventsProcessed;
+    }
     activeBoss.value = null;
+    _nearbyNpc = null;
+    _nearbyNpcDistance = double.infinity;
+    canInteract.value = false;
 
     currentLevelIndex = index.clamp(0, Levels.all.length - 1);
     final def = Levels.all[currentLevelIndex];
@@ -186,7 +258,7 @@ class DarkbladeGame extends FlameGame
       return;
     }
     await _loadLevel(currentLevelIndex + 1);
-    _showChapterTitle();
+    _playIntro();
     saveProgress();
   }
 
@@ -205,12 +277,12 @@ class DarkbladeGame extends FlameGame
     overlays.remove(OverlayIds.gameOver);
     phase = GamePhase.playing;
     player.respawn();
-    activeBoss.value?.let((boss) {
-      if (!boss.isRemoved && !boss.isDead) {
-        boss.health.refill();
-      }
-    });
-    activeBoss.value = null;
+    final boss = activeBoss.value;
+    if (boss != null && !boss.isRemoved && !boss.isDead) {
+      boss.health.refill();
+    } else {
+      activeBoss.value = null;
+    }
     resumeEngine();
   }
 
@@ -228,6 +300,32 @@ class DarkbladeGame extends FlameGame
     activeBoss.value = boss;
     shakeCamera(intensity: 6, duration: 0.8);
     AudioService.instance.playMusic('boss_theme.wav');
+    final lore = switch (boss.archetype.behavior) {
+      BossBehavior.knight => const DialogueLine(
+        speaker: 'SIR ALDRIC',
+        text: 'Thanh kiếm này... vì sao lại run lên khi ngươi đến gần?',
+        color: Color(0xFFE0C9FF),
+      ),
+      BossBehavior.treant => const DialogueLine(
+        speaker: 'ELDER TREANT',
+        text:
+            'Mỗi chiếc lá là một ký ức. Mỗi nhát chém của ngươi sẽ khiến một người chết thêm lần nữa.',
+        color: Color(0xFF77FF99),
+      ),
+      BossBehavior.queen => const DialogueLine(
+        speaker: 'PRINCESS ELENIA',
+        text:
+            'Ta từng yêu hoa, âm nhạc và ánh sáng. Giờ ta chỉ còn nhớ... mỗi đêm cha đều khóc.',
+        color: Color(0xFFFF7799),
+      ),
+      BossBehavior.varkhan => const DialogueLine(
+        speaker: 'KING VARKHAN',
+        text:
+            'Ta đã cứu con bé khỏi ánh sáng của các ngươi. Đừng gọi tình yêu của ta là tội lỗi.',
+        color: Color(0xFFFF5544),
+      ),
+    };
+    showDialogue([lore]);
   }
 
   void onBossDefeated(Boss boss) {
@@ -243,6 +341,11 @@ class DarkbladeGame extends FlameGame
     }
   }
 
+  void onEnemyDefeated(String saveId) {
+    defeatedEnemies.add(saveId);
+    scheduleSaveProgress();
+  }
+
   void _showVictory() {
     if (phase == GamePhase.victory) return;
     phase = GamePhase.victory;
@@ -251,14 +354,25 @@ class DarkbladeGame extends FlameGame
   }
 
   // -------------------------------------------------------------- inventory
+  int get potionCount => inventory.countOf(Item.healthPotion.id);
+
+  bool get canUsePotion =>
+      playerReady && !player.health.isFull && potionCount > 0;
+
   void useEquippedPotion() {
+    if (player.health.isFull) {
+      showToast('HP is already full');
+      return;
+    }
     final heal = inventory.usePotion();
     if (heal == null) {
       showToast('No potions left!');
       return;
     }
+    final before = player.health.current;
     player.health.heal(heal);
-    showToast('+${heal.toStringAsFixed(0)} HP');
+    final restored = player.health.current - before;
+    showToast('+${restored.toStringAsFixed(0)} HP');
     AudioService.instance.playSfx('potion.wav');
   }
 
@@ -271,21 +385,30 @@ class DarkbladeGame extends FlameGame
   void refreshEquipment() => _applyEquipmentBonuses();
 
   // ------------------------------------------------------------------- save
-  void saveProgress() {
-    saveService.save(
+  Future<void> saveProgress() {
+    _saveTimer?.cancel();
+    return saveService.save(
       SaveModel(
         currentLevel: currentLevelIndex,
-        playerX: player.respawnPoint.x,
-        playerY: player.respawnPoint.y,
+        playerX: player.position.x,
+        playerY: player.position.y,
         hp: player.health.current,
         mana: player.stats.mana,
         stamina: player.stats.stamina,
         souls: player.stats.souls,
         inventoryJson: inventory.toJson(),
         defeatedBosses: defeatedBosses.toList(),
+        defeatedEnemies: defeatedEnemies.toList(),
         unlockDash: player.unlockDash,
       ),
     );
+  }
+
+  void scheduleSaveProgress() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 350), () {
+      saveProgress();
+    });
   }
 
   // --------------------------------------------------------------- niceties
@@ -294,6 +417,8 @@ class DarkbladeGame extends FlameGame
   }
 
   void spawnDamageNumber(Vector2 position, double amount, bool critical) {
+    if (lowFpsMode && !critical) return;
+    if (world.children.query<DamageNumber>().length > 18) return;
     world.add(
       DamageNumber(position: position, amount: amount, critical: critical),
     );
@@ -346,6 +471,28 @@ class DarkbladeGame extends FlameGame
     camera.viewport.add(seq);
   }
 
+  void offerInteraction(Npc npc, double distance) {
+    if (_nearbyNpc == null ||
+        _nearbyNpc == npc ||
+        distance < _nearbyNpcDistance) {
+      _nearbyNpc = npc;
+      _nearbyNpcDistance = distance;
+      canInteract.value = true;
+    }
+  }
+
+  void clearInteraction(Npc npc) {
+    if (_nearbyNpc != npc) return;
+    _nearbyNpc = null;
+    _nearbyNpcDistance = double.infinity;
+    canInteract.value = false;
+  }
+
+  void interactWithNpc() {
+    if (phase != GamePhase.playing) return;
+    _nearbyNpc?.interact();
+  }
+
   // ------------------------------------------------------------------ input
   @override
   KeyEventResult onKeyEvent(
@@ -379,6 +526,12 @@ class DarkbladeGame extends FlameGame
       if (event.logicalKey == LogicalKeyboardKey.keyE &&
           phase == GamePhase.playing) {
         openInventory();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyF &&
+          phase == GamePhase.playing &&
+          canInteract.value) {
+        interactWithNpc();
         return KeyEventResult.handled;
       }
     }
@@ -417,13 +570,31 @@ class DarkbladeGame extends FlameGame
 
   @override
   void update(double dt) {
-    super.update(dt);
+    final simDt = dt > _resumeSpikeDt ? _resumeRecoveryDt : dt;
+    super.update(simDt);
     if (phase == GamePhase.playing || phase == GamePhase.gameOver) {
-      cameraController.update(dt);
+      cameraController.update(simDt);
+    }
+    if (phase == GamePhase.playing && simDt > 0) {
+      _fpsElapsed += simDt;
+      _fpsFrames++;
+      if (_fpsElapsed >= 0.5) {
+        fps = _fpsFrames / _fpsElapsed;
+        if (fps < 40) {
+          lowFpsMode = true;
+          _qualityRecoverySamples = 0;
+        } else if (lowFpsMode && fps > 52) {
+          _qualityRecoverySamples++;
+          if (_qualityRecoverySamples >= 10) {
+            lowFpsMode = false;
+            _qualityRecoverySamples = 0;
+          }
+        } else if (fps <= 52) {
+          _qualityRecoverySamples = 0;
+        }
+        _fpsElapsed = 0;
+        _fpsFrames = 0;
+      }
     }
   }
-}
-
-extension _Let<T> on T {
-  R let<R>(R Function(T it) block) => block(this);
 }

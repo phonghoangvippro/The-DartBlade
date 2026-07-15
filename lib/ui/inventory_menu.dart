@@ -57,8 +57,10 @@ class InventoryMenu extends StatelessWidget {
                     const Padding(
                       padding: EdgeInsets.all(20),
                       child: Center(
-                        child: Text('Your pack is empty...',
-                            style: TextStyle(color: Colors.white38)),
+                        child: Text(
+                          'Your pack is empty...',
+                          style: TextStyle(color: Colors.white38),
+                        ),
                       ),
                     )
                   else
@@ -77,8 +79,7 @@ class InventoryMenu extends StatelessWidget {
                     'Attack: ${game.player.stats.attack.toStringAsFixed(0)}'
                     '   Defense: ${game.player.stats.defense.toStringAsFixed(0)}'
                     '   Souls: ${game.player.stats.souls}',
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ],
               );
@@ -107,16 +108,16 @@ class InventoryMenu extends StatelessWidget {
           color: Colors.black38,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-              color: item != null
-                  ? const Color(0xFF7B2FF2)
-                  : Colors.white12),
+            color: item != null ? const Color(0xFF7B2FF2) : Colors.white12,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style:
-                    const TextStyle(color: Colors.white38, fontSize: 10)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white38, fontSize: 10),
+            ),
             const SizedBox(height: 2),
             Text(
               item?.name ?? '- empty -',
@@ -134,8 +135,7 @@ class InventoryMenu extends StatelessWidget {
 
   Widget _itemTile(BuildContext context, Item item, int count) {
     final inv = game.inventory;
-    final isEquipped =
-        inv.equippedWeapon == item || inv.equippedArmor == item;
+    final isEquipped = inv.equippedWeapon == item || inv.equippedArmor == item;
 
     return ListTile(
       dense: true,
@@ -176,8 +176,10 @@ class InventoryMenu extends StatelessWidget {
         onPressed: () {
           game.useEquippedPotion();
         },
-        child: const Text('USE',
-            style: TextStyle(color: Color(0xFF45D67E), fontSize: 12)),
+        child: const Text(
+          'USE',
+          style: TextStyle(color: Color(0xFF45D67E), fontSize: 12),
+        ),
       );
     }
     if (item.isEquippable) {
@@ -193,9 +195,7 @@ class InventoryMenu extends StatelessWidget {
         child: Text(
           isEquipped ? 'UNEQUIP' : 'EQUIP',
           style: TextStyle(
-            color: isEquipped
-                ? Colors.white38
-                : const Color(0xFFB388FF),
+            color: isEquipped ? Colors.white38 : const Color(0xFFB388FF),
             fontSize: 12,
           ),
         ),

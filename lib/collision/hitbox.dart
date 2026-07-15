@@ -18,7 +18,7 @@ class AttackHitbox extends RectangleHitbox {
   }
 
   /// Faction of the attacker; targets of the same faction are ignored.
-  final String ownerFaction;
+  String ownerFaction;
 
   /// Called lazily when a hit connects so damage reflects live stats.
   final DamageInfo Function(Damageable target) damageProvider;
@@ -41,8 +41,7 @@ class AttackHitbox extends RectangleHitbox {
   }
 
   @override
-  void onCollisionStart(
-      Set<Vector2> intersectionPoints, ShapeHitbox other) {
+  void onCollisionStart(Set<Vector2> intersectionPoints, ShapeHitbox other) {
     super.onCollisionStart(intersectionPoints, other);
     _tryHit(other);
   }
@@ -64,4 +63,8 @@ class AttackHitbox extends RectangleHitbox {
     _alreadyHit.add(target);
     target.receiveDamage(damageProvider(target));
   }
+
+  @override
+  bool onComponentTypeCheck(PositionComponent other) =>
+      other is Hurtbox && super.onComponentTypeCheck(other);
 }

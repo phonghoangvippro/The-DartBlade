@@ -42,8 +42,10 @@ class GameOverMenu extends StatelessWidget {
                   side: const BorderSide(color: Color(0xFF7B2FF2)),
                 ),
                 onPressed: game.respawnPlayer,
-                child: const Text('RETURN TO CHECKPOINT',
-                    style: TextStyle(letterSpacing: 2)),
+                child: const Text(
+                  'RETURN TO CHECKPOINT',
+                  style: TextStyle(letterSpacing: 2),
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -60,8 +62,10 @@ class GameOverMenu extends StatelessWidget {
                   game.phase = GamePhase.menu;
                   game.overlays.add(OverlayIds.mainMenu);
                 },
-                child: const Text('QUIT TO MENU',
-                    style: TextStyle(letterSpacing: 2)),
+                child: const Text(
+                  'QUIT TO MENU',
+                  style: TextStyle(letterSpacing: 2),
+                ),
               ),
             ),
           ],

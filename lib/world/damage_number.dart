@@ -10,24 +10,22 @@ class DamageNumber extends TextComponent {
     required double amount,
     bool critical = false,
   }) : super(
-          position: position,
-          anchor: Anchor.center,
-          text: critical
-              ? '${amount.toStringAsFixed(0)}!'
-              : amount.toStringAsFixed(0),
-          textRenderer: TextPaint(
-            style: TextStyle(
-              fontSize: critical ? 16 : 12,
-              fontWeight: FontWeight.bold,
-              color: critical
-                  ? const Color(0xFFFFD54F)
-                  : const Color(0xFFF1F1F1),
-              shadows: const [
-                Shadow(blurRadius: 2, offset: Offset(1, 1)),
-              ],
-            ),
-          ),
-        ) {
+         position: position,
+         anchor: Anchor.center,
+         text: critical
+             ? '${amount.toStringAsFixed(0)}!'
+             : amount.toStringAsFixed(0),
+         textRenderer: TextPaint(
+           style: TextStyle(
+             fontSize: critical ? 16 : 12,
+             fontWeight: FontWeight.bold,
+             color: critical
+                 ? const Color(0xFFFFD54F)
+                 : const Color(0xFFF1F1F1),
+             shadows: const [Shadow(blurRadius: 2, offset: Offset(1, 1))],
+           ),
+         ),
+       ) {
     priority = GameConstants.priorityFx;
   }
 

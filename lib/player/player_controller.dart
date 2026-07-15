@@ -63,11 +63,13 @@ class PlayerController {
       _keyMoveDirection += 1;
     }
 
-    _keyJumpHeld = keys.contains(LogicalKeyboardKey.space) ||
+    _keyJumpHeld =
+        keys.contains(LogicalKeyboardKey.space) ||
         keys.contains(LogicalKeyboardKey.keyW) ||
         keys.contains(LogicalKeyboardKey.arrowUp);
     _keyAttackHeld = keys.contains(LogicalKeyboardKey.keyJ);
-    _keyDashHeld = keys.contains(LogicalKeyboardKey.keyK) ||
+    _keyDashHeld =
+        keys.contains(LogicalKeyboardKey.keyK) ||
         keys.contains(LogicalKeyboardKey.shiftLeft);
     _keyBlockHeld = keys.contains(LogicalKeyboardKey.keyL);
     _keySkillHeld = keys.contains(LogicalKeyboardKey.keyI);

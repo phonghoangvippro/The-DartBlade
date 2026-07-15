@@ -55,86 +55,114 @@ class _MainMenuState extends State<MainMenu>
             children: [
               // Dark particles overlay
               Positioned.fill(
-                child: CustomPaint(
-                  painter: _MenuParticlePainter(t: t),
-                ),
+                child: CustomPaint(painter: _MenuParticlePainter(t: t)),
               ),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Title with glow
-                    ShaderMask(
-                      shaderCallback: (bounds) => LinearGradient(
-                        colors: [
-                          const Color(0xFF7B2FF2).withValues(alpha: 0.6 + pulse * 0.4),
-                          const Color(0xFFB388FF),
-                          const Color(0xFF7B2FF2).withValues(alpha: 0.6 + pulse * 0.4),
-                        ],
-                        stops: [0.0, 0.5, 1.0],
-                      ).createShader(bounds),
-                      child: const Text(
-                        'THE DARKBLADE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 12,
-                          shadows: [
-                            Shadow(color: Color(0xFF7B2FF2), blurRadius: 30),
-                            Shadow(color: Color(0xFFFF0000), blurRadius: 10),
+              SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 40,
+                        minWidth: constraints.maxWidth - 48,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Title with glow
+                          ShaderMask(
+                            shaderCallback: (bounds) => LinearGradient(
+                              colors: [
+                                const Color(
+                                  0xFF7B2FF2,
+                                ).withValues(alpha: 0.6 + pulse * 0.4),
+                                const Color(0xFFB388FF),
+                                const Color(
+                                  0xFF7B2FF2,
+                                ).withValues(alpha: 0.6 + pulse * 0.4),
+                              ],
+                              stops: [0.0, 0.5, 1.0],
+                            ).createShader(bounds),
+                            child: const Text(
+                              'THE DARKBLADE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 12,
+                                shadows: [
+                                  Shadow(
+                                    color: Color(0xFF7B2FF2),
+                                    blurRadius: 30,
+                                  ),
+                                  Shadow(
+                                    color: Color(0xFFFF0000),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'A 2D Souls-like Action RPG',
+                            style: TextStyle(
+                              color: const Color(
+                                0xFFB0A0C0,
+                              ).withValues(alpha: 0.6 + pulse * 0.2),
+                              fontSize: 14,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Dark Fantasy  ·  Hack and Slash  ·  Metroidvania',
+                            style: TextStyle(
+                              color: const Color(
+                                0xFF7B2FF2,
+                              ).withValues(alpha: 0.4),
+                              fontSize: 10,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 48),
+                          _MenuButton(
+                            label: 'NEW GAME',
+                            icon: Icons.whatshot,
+                            onPressed: widget.game.startNewGame,
+                          ),
+                          if (hasSave) ...[
+                            const SizedBox(height: 14),
+                            _MenuButton(
+                              label: 'CONTINUE',
+                              icon: Icons.play_arrow,
+                              onPressed: widget.game.continueGame,
+                            ),
                           ],
-                        ),
+                          const SizedBox(height: 14),
+                          _MenuButton(
+                            label: 'SETTINGS',
+                            icon: Icons.settings,
+                            onPressed: () => widget.game.overlays.add(
+                              OverlayIds.settingsMenu,
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+                          Text(
+                            'v1.0  ·  Press ESC to pause',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'A 2D Souls-like Action RPG',
-                      style: TextStyle(
-                        color: const Color(0xFFB0A0C0).withValues(alpha: 0.6 + pulse * 0.2),
-                        fontSize: 14,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Dark Fantasy  ·  Hack and Slash  ·  Metroidvania',
-                      style: TextStyle(
-                        color: const Color(0xFF7B2FF2).withValues(alpha: 0.4),
-                        fontSize: 10,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    _MenuButton(
-                      label: 'NEW GAME',
-                      icon: Icons.whatshot,
-                      onPressed: widget.game.startNewGame,
-                    ),
-                    if (hasSave) ...[
-                      const SizedBox(height: 14),
-                      _MenuButton(
-                        label: 'CONTINUE',
-                        icon: Icons.play_arrow,
-                        onPressed: widget.game.continueGame,
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    _MenuButton(
-                      label: 'SETTINGS',
-                      icon: Icons.settings,
-                      onPressed: () =>
-                          widget.game.overlays.add(OverlayIds.settingsMenu),
-                    ),
-                    const SizedBox(height: 40),
-                    Text(
-                      'v1.0  ·  Press ESC to pause',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -152,8 +180,7 @@ class _MenuParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rng = Random(42);
-    final paint = Paint()
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
+    final paint = Paint()..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
 
     for (var i = 0; i < 30; i++) {
       final x = ((rng.nextDouble() + t * 0.02 + i * 0.1) % 1.0) * size.width;
@@ -192,9 +219,7 @@ class _MenuButton extends StatelessWidget {
             color: const Color(0xFF7B2FF2).withValues(alpha: 0.6),
           ),
           backgroundColor: const Color(0xFF1A0A2E).withValues(alpha: 0.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         ),
         onPressed: onPressed,
         label: Text(

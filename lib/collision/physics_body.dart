@@ -19,8 +19,7 @@ mixin PhysicsBody on PositionComponent {
   List<Platform> Function()? platformsProvider;
 
   /// Collision bounds relative to [position] (component top-left).
-  Rect get bodyRect =>
-      Rect.fromLTWH(position.x, position.y, size.x, size.y);
+  Rect get bodyRect => Rect.fromLTWH(position.x, position.y, size.x, size.y);
 
   void applyPhysics(double dt) {
     if (gravityEnabled) {
@@ -33,18 +32,22 @@ mixin PhysicsBody on PositionComponent {
     final platforms = platformsProvider?.call() ?? const <Platform>[];
 
     // ---- X axis ----
-    position.x += velocity.x * dt;
     var rect = bodyRect;
-    for (final p in platforms) {
-      if (p.oneWay) continue; // one-way platforms never block horizontally
-      if (!rect.overlaps(p.rect)) continue;
-      if (velocity.x > 0) {
-        position.x = p.rect.left - size.x;
-      } else if (velocity.x < 0) {
-        position.x = p.rect.right;
-      }
-      velocity.x = 0;
+    if (velocity.x != 0) {
+      position.x += velocity.x * dt;
       rect = bodyRect;
+      for (final p in platforms) {
+        if (p.oneWay) continue; // one-way platforms never block horizontally
+        final platformRect = p.rect;
+        if (!rect.overlaps(platformRect)) continue;
+        if (velocity.x > 0) {
+          position.x = platformRect.left - size.x;
+        } else {
+          position.x = platformRect.right;
+        }
+        velocity.x = 0;
+        rect = bodyRect;
+      }
     }
 
     // ---- Y axis ----
@@ -54,16 +57,17 @@ mixin PhysicsBody on PositionComponent {
     rect = bodyRect;
     isOnGround = false;
     for (final p in platforms) {
-      if (!rect.overlaps(p.rect)) continue;
+      final platformRect = p.rect;
+      if (!rect.overlaps(platformRect)) continue;
       if (velocity.y > 0) {
         // Falling onto a platform. One-way platforms only stop us if we were
         // fully above them last frame.
-        if (p.oneWay && previousBottom > p.rect.top + 1) continue;
-        position.y = p.rect.top - size.y;
+        if (p.oneWay && previousBottom > platformRect.top + 1) continue;
+        position.y = platformRect.top - size.y;
         velocity.y = 0;
         isOnGround = true;
       } else if (velocity.y < 0 && !p.oneWay) {
-        position.y = p.rect.bottom;
+        position.y = platformRect.bottom;
         velocity.y = 0;
       }
       rect = bodyRect;
@@ -71,12 +75,7 @@ mixin PhysicsBody on PositionComponent {
 
     // Treat resting contact as grounded even when velocity got zeroed.
     if (!isOnGround && wasFalling == false && velocity.y == 0) {
-      final probe = Rect.fromLTWH(
-        position.x,
-        position.y + size.y,
-        size.x,
-        2,
-      );
+      final probe = Rect.fromLTWH(position.x, position.y + size.y, size.x, 2);
       for (final p in platforms) {
         if (probe.overlaps(p.rect)) {
           isOnGround = true;

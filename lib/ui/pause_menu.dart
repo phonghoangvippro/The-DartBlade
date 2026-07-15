@@ -29,16 +29,18 @@ class PauseMenu extends StatelessWidget {
             const SizedBox(height: 32),
             _button('RESUME', game.togglePause),
             const SizedBox(height: 10),
-            _button('SETTINGS',
-                () => game.overlays.add(OverlayIds.settingsMenu)),
+            _button(
+              'SETTINGS',
+              () => game.overlays.add(OverlayIds.settingsMenu),
+            ),
             const SizedBox(height: 10),
-            _button('SAVE GAME', () {
-              game.saveProgress();
+            _button('SAVE GAME', () async {
+              await game.saveProgress();
               game.showToast('Game saved');
             }),
             const SizedBox(height: 10),
-            _button('QUIT TO MENU', () {
-              game.saveProgress();
+            _button('QUIT TO MENU', () async {
+              await game.saveProgress();
               game.overlays.remove(OverlayIds.pauseMenu);
               game.phase = GamePhase.menu;
               game.overlays.add(OverlayIds.mainMenu);

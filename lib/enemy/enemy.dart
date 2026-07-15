@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
 import '../collision/hitbox.dart';
@@ -12,7 +13,6 @@ import '../core/services/audio_service.dart';
 import '../core/utils/math_utils.dart';
 import '../effects/darkblade_effects.dart';
 import '../entities/character.dart';
-import '../weapon/blade_wave.dart';
 import '../game/darkblade_game.dart';
 import '../inventory/item.dart';
 import '../world/pickup.dart';
@@ -145,17 +145,22 @@ enum EnemyType { zombie, skeleton, shadowWolf, spiritWitch }
 class Enemy extends Character
     with HasGameReference<DarkbladeGame>
     implements EnemyBrainHost {
-  Enemy({required super.position, required this.archetype})
-    : super(
-        size: Vector2(archetype.size.width, archetype.size.height),
-        maxHp: archetype.maxHp,
-      ) {
+  Enemy({
+    required super.position,
+    required this.archetype,
+    required this.saveId,
+  }) : super(
+         size: Vector2(archetype.size.width, archetype.size.height),
+         maxHp: archetype.maxHp,
+       ) {
     priority = GameConstants.priorityEnemy;
   }
 
   final EnemyArchetype archetype;
+  final String saveId;
   late final EnemyAi ai;
   late final AttackHitbox _meleeHitbox;
+  late final Hurtbox _hurtbox;
   final DamageCalculator _damageCalc = DamageCalculator();
 
   double _deadTimer = 0;
@@ -177,13 +182,12 @@ class Enemy extends Character
       recoverDuration: archetype.recoverDuration,
     );
 
-    add(
-      Hurtbox(
-        owner: this,
-        position: Vector2(2, 2),
-        size: Vector2(size.x - 4, size.y - 4),
-      ),
+    _hurtbox = Hurtbox(
+      owner: this,
+      position: Vector2(2, 2),
+      size: Vector2(size.x - 4, size.y - 4),
     );
+    add(_hurtbox);
 
     _meleeHitbox = AttackHitbox(
       ownerFaction: faction,
@@ -195,6 +199,7 @@ class Enemy extends Character
         return DamageInfo(
           amount: r.amount,
           knockbackDirection: facing.toDouble(),
+          sourcePosition: absoluteCenter.clone(),
         );
       },
       size: Vector2(archetype.attackRange + 6, size.y * 0.8),
@@ -221,6 +226,19 @@ class Enemy extends Character
   @override
   void update(double dt) {
     if (game.phase != GamePhase.playing) return;
+
+    final player = game.player;
+    final distance = absoluteCenter.distanceTo(player.absoluteCenter);
+    final nearby = distance <= 760;
+    _hurtbox.collisionType = nearby
+        ? CollisionType.passive
+        : CollisionType.inactive;
+    if (!nearby) {
+      _meleeHitbox.deactivate();
+      velocity.x = 0;
+      return;
+    }
+
     super.update(dt);
 
     if (isDead) {
@@ -231,15 +249,6 @@ class Enemy extends Character
     }
 
     _rangedCooldown -= dt;
-    final player = game.player;
-    final distance = absoluteCenter.distanceTo(player.absoluteCenter);
-
-    if (distance > 700 &&
-        (ai.state == EnemyState.idle || ai.state == EnemyState.patrol)) {
-      velocity.x = 0;
-      return;
-    }
-
     // Ranged attack for spirit witch
     if (archetype.type == EnemyType.spiritWitch &&
         ai.state == EnemyState.chase &&
@@ -271,15 +280,13 @@ class Enemy extends Character
   }
 
   void _fireRanged() {
-    game.gameWorld.add(
-      BladeWave(
-        position: absoluteCenter + Vector2(facing * 20, 0),
-        direction: facing,
-        damage: archetype.attack * 0.7,
-        faction: faction,
-        maxDistance: 400,
-        color: archetype.auraColor,
-      ),
+    game.spawnBladeWave(
+      position: absoluteCenter + Vector2(facing * 20, 0),
+      direction: facing,
+      damage: archetype.attack * 0.7,
+      faction: faction,
+      maxDistance: 400,
+      color: archetype.auraColor,
     );
     AudioService.instance.playSfx('enemy_attack.wav');
   }
@@ -317,6 +324,7 @@ class Enemy extends Character
     _meleeHitbox.deactivate();
     velocity.x = 0;
     AudioService.instance.playSfx('enemy_death.wav');
+    game.onEnemyDefeated(saveId);
 
     game.player.stats.souls += archetype.soulsReward;
 
@@ -343,6 +351,10 @@ class Enemy extends Character
 
   @override
   void render(Canvas canvas) {
+    if (game.playerReady &&
+        absoluteCenter.distanceTo(game.player.absoluteCenter) > 760) {
+      return;
+    }
     canvas.save();
     if (facing < 0) {
       canvas.translate(size.x, 0);
@@ -524,8 +536,7 @@ class Enemy extends Character
       final glow = Paint()
         ..color = const Color(
           0xFFFFAA44,
-        ).withValues(alpha: 0.6 + sin(t * 4) * 0.3)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2);
+        ).withValues(alpha: 0.6 + sin(t * 4) * 0.3);
       canvas.drawCircle(Offset(size.x * 0.38, size.y * 0.14 + bob), 2, glow);
       canvas.drawCircle(Offset(size.x * 0.62, size.y * 0.14 + bob), 2, glow);
     }
@@ -570,10 +581,8 @@ class Enemy extends Character
     // Shadow aura
     canvas.drawCircle(
       Offset(size.x * 0.5, size.y * 0.4 + bob),
-      size.x * 0.4,
-      Paint()
-        ..color = const Color(0x22000044)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8),
+      size.x * 0.48,
+      Paint()..color = const Color(0x16000066),
     );
 
     // Body
@@ -616,8 +625,7 @@ class Enemy extends Character
     // Glowing eyes in chase
     if (ai.state == EnemyState.chase || ai.state == EnemyState.attack) {
       final glow = Paint()
-        ..color = eyeColor.withValues(alpha: 0.5 + sin(t * 5) * 0.3)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+        ..color = eyeColor.withValues(alpha: 0.5 + sin(t * 5) * 0.3);
       canvas.drawCircle(Offset(size.x * 0.4, size.y * 0.14 + bob), 2, glow);
       canvas.drawCircle(Offset(size.x * 0.6, size.y * 0.14 + bob), 2, glow);
     }
@@ -671,10 +679,8 @@ class Enemy extends Character
     // Spirit glow
     canvas.drawCircle(
       Offset(size.x * 0.5, size.y * 0.3 + bob),
-      size.x * 0.5,
-      Paint()
-        ..color = const Color(0x224A2A5A)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
+      size.x * 0.62,
+      Paint()..color = const Color(0x164A2A7A),
     );
 
     // Floating robe
@@ -715,16 +721,13 @@ class Enemy extends Character
         ? const Color(0xFFAA44FF)
         : const Color(0xFF6644AA);
     final eyeGlow = Paint()
-      ..color = eyeColor.withValues(alpha: 0.6 + sin(t * 3) * 0.3)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+      ..color = eyeColor.withValues(alpha: 0.6 + sin(t * 3) * 0.3);
     canvas.drawCircle(Offset(size.x * 0.42, size.y * 0.12 + bob), 2.5, eyeGlow);
     canvas.drawCircle(Offset(size.x * 0.58, size.y * 0.12 + bob), 2.5, eyeGlow);
 
     // No legs (floating)
     // Ghostly trail
-    final trailPaint = Paint()
-      ..color = baseColor.withValues(alpha: 0.15)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 5);
+    final trailPaint = Paint()..color = baseColor.withValues(alpha: 0.12);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(

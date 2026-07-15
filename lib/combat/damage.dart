@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flame/components.dart';
+
 import '../core/config/game_config.dart';
 
 /// Result of a single damage computation.
@@ -60,6 +62,7 @@ class DamageInfo {
     required this.knockbackDirection,
     this.isCritical = false,
     this.knockbackForce = GameConfig.knockbackX,
+    this.sourcePosition,
   });
 
   final double amount;
@@ -68,4 +71,10 @@ class DamageInfo {
   final double knockbackDirection;
   final bool isCritical;
   final double knockbackForce;
+
+  /// World-space center of the attacker/projectile when the hit connected.
+  ///
+  /// This lets defenders decide whether a frontal block should catch the hit
+  /// even when knockback direction is not a reliable proxy for attack origin.
+  final Vector2? sourcePosition;
 }

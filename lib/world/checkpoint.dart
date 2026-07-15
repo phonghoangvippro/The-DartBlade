@@ -12,11 +12,11 @@ import '../game/darkblade_game.dart';
 class Checkpoint extends PositionComponent
     with HasGameReference<DarkbladeGame> {
   Checkpoint({required Vector2 position})
-      : super(
-          position: position,
-          size: Vector2(24, 40),
-          anchor: Anchor.bottomCenter,
-        ) {
+    : super(
+        position: position,
+        size: Vector2(24, 40),
+        anchor: Anchor.bottomCenter,
+      ) {
     priority = GameConstants.priorityPickup;
   }
 
@@ -32,8 +32,10 @@ class Checkpoint extends PositionComponent
     final player = game.player;
     if (!player.isDead && player.toRect().overlaps(toRect())) {
       activated = true;
-      player.respawnPoint =
-          Vector2(position.x - player.size.x / 2, position.y - player.size.y);
+      player.respawnPoint = Vector2(
+        position.x - player.size.x / 2,
+        position.y - player.size.y,
+      );
       player.health.refill();
       game.showToast('Checkpoint reached - progress saved');
       game.saveProgress();
@@ -53,15 +55,19 @@ class Checkpoint extends PositionComponent
       canvas.drawCircle(
         Offset(size.x / 2, 8),
         7 + flicker,
-        Paint()
-          ..color = const Color(0x407B2FF2)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+        Paint()..color = const Color(0x337B2FF2),
       );
-      canvas.drawCircle(Offset(size.x / 2, 8), 4 + flicker / 2,
-          Paint()..color = const Color(0xFFB388FF));
+      canvas.drawCircle(
+        Offset(size.x / 2, 8),
+        4 + flicker / 2,
+        Paint()..color = const Color(0xFFB388FF),
+      );
     } else {
-      canvas.drawCircle(Offset(size.x / 2, 8), 4,
-          Paint()..color = const Color(0xFF55555E));
+      canvas.drawCircle(
+        Offset(size.x / 2, 8),
+        4,
+        Paint()..color = const Color(0xFF55555E),
+      );
     }
   }
 }

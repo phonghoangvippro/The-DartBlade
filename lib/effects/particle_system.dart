@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 import '../core/constants/game_constants.dart';
+import '../game/darkblade_game.dart';
 
 class Particle {
   double x, y;
@@ -28,15 +29,16 @@ class Particle {
   double get ratio => (life / maxLife).clamp(0.0, 1.0);
 }
 
-class ParticleEmitter extends PositionComponent {
+class ParticleEmitter extends PositionComponent
+    with HasGameReference<DarkbladeGame> {
   final EmitterConfig config;
   final List<Particle> _particles = [];
+  final Random _rng = Random();
+  final Paint _paint = Paint();
   double _timer = 0;
 
-  ParticleEmitter({
-    required this.config,
-    Vector2? position,
-  }) : super(position: position ?? Vector2.zero()) {
+  ParticleEmitter({required this.config, Vector2? position})
+    : super(position: position ?? Vector2.zero()) {
     priority = GameConstants.priorityFx;
   }
 
@@ -44,7 +46,8 @@ class ParticleEmitter extends PositionComponent {
   void update(double dt) {
     super.update(dt);
     _timer += dt;
-    while (_timer >= config.emitInterval && _particles.length < config.maxParticles) {
+    while (_timer >= config.emitInterval &&
+        _particles.length < config.maxParticles) {
       _emit();
       _timer -= config.emitInterval;
     }
@@ -60,34 +63,41 @@ class ParticleEmitter extends PositionComponent {
   }
 
   void _emit() {
-    final rng = Random();
     for (var i = 0; i < config.burstCount; i++) {
       final angle = config.angleSpread > 0
-          ? config.baseAngle + (rng.nextDouble() - 0.5) * config.angleSpread
+          ? config.baseAngle + (_rng.nextDouble() - 0.5) * config.angleSpread
           : config.baseAngle;
-      final speed = config.minSpeed + rng.nextDouble() * (config.maxSpeed - config.minSpeed);
-      _particles.add(Particle(
-        x: position.x + (rng.nextDouble() - 0.5) * config.spreadX,
-        y: position.y + (rng.nextDouble() - 0.5) * config.spreadY,
-        vx: cos(angle) * speed,
-        vy: sin(angle) * speed,
-        life: config.minLife + rng.nextDouble() * (config.maxLife - config.minLife),
-        maxLife: config.maxLife,
-        size: config.minSize + rng.nextDouble() * (config.maxSize - config.minSize),
-        color: config.color,
-      ));
+      final speed =
+          config.minSpeed +
+          _rng.nextDouble() * (config.maxSpeed - config.minSpeed);
+      _particles.add(
+        Particle(
+          x: position.x + (_rng.nextDouble() - 0.5) * config.spreadX,
+          y: position.y + (_rng.nextDouble() - 0.5) * config.spreadY,
+          vx: cos(angle) * speed,
+          vy: sin(angle) * speed,
+          life:
+              config.minLife +
+              _rng.nextDouble() * (config.maxLife - config.minLife),
+          maxLife: config.maxLife,
+          size:
+              config.minSize +
+              _rng.nextDouble() * (config.maxSize - config.minSize),
+          color: config.color,
+        ),
+      );
     }
   }
 
   @override
   void render(Canvas canvas) {
-    for (final p in _particles) {
-      final paint = Paint()
+    final stride = game.lowFpsMode ? 2 : 1;
+    for (var i = 0; i < _particles.length; i += stride) {
+      final p = _particles[i];
+      _paint
         ..color = p.color.withValues(alpha: p.alpha * config.opacity)
-        ..maskFilter = p.size > 4
-            ? const MaskFilter.blur(BlurStyle.normal, 3)
-            : null;
-      canvas.drawCircle(Offset(p.x, p.y), p.size, paint);
+        ..maskFilter = null;
+      canvas.drawCircle(Offset(p.x, p.y), p.size, _paint);
     }
   }
 }
@@ -132,22 +142,28 @@ class EmitterConfig {
   });
 }
 
-class DarkMistEffect extends Component {
+class DarkMistEffect extends Component with HasGameReference<DarkbladeGame> {
   final List<_MistParticle> _particles = [];
   final Random _rng = Random();
   final double _width;
   final double _height;
   final Color _color;
+  final Paint _outerPaint = Paint();
+  final Paint _innerPaint = Paint();
 
   DarkMistEffect(this._width, this._height, this._color) {
-    for (var i = 0; i < 20; i++) {
-      _particles.add(_MistParticle(
-        x: _rng.nextDouble() * _width,
-        y: _rng.nextDouble() * _height,
-        size: 20 + _rng.nextDouble() * 60,
-        speed: 5 + _rng.nextDouble() * 15,
-        alpha: 0.05 + _rng.nextDouble() * 0.12,
-      ));
+    for (var i = 0; i < 7; i++) {
+      final size = 28 + _rng.nextDouble() * 36;
+      final alpha = 0.04 + _rng.nextDouble() * 0.08;
+      _particles.add(
+        _MistParticle(
+          x: _rng.nextDouble() * _width,
+          y: _rng.nextDouble() * _height,
+          size: size,
+          speed: 5 + _rng.nextDouble() * 15,
+          alpha: alpha,
+        ),
+      );
     }
   }
 
@@ -162,11 +178,15 @@ class DarkMistEffect extends Component {
 
   @override
   void render(Canvas canvas) {
-    for (final p in _particles) {
-      final paint = Paint()
-        ..color = _color.withValues(alpha: p.alpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, p.size / 3);
-      canvas.drawCircle(Offset(p.x, p.y), p.size, paint);
+    final playerX = game.playerReady ? game.player.absoluteCenter.x : 0.0;
+    final stride = game.lowFpsMode ? 2 : 1;
+    for (var i = 0; i < _particles.length; i += stride) {
+      final p = _particles[i];
+      if (game.playerReady && (p.x - playerX).abs() > 650) continue;
+      _outerPaint.color = _color.withValues(alpha: p.alpha * 0.3);
+      canvas.drawCircle(Offset(p.x, p.y), p.size, _outerPaint);
+      _innerPaint.color = _color.withValues(alpha: p.alpha * 0.55);
+      canvas.drawCircle(Offset(p.x, p.y), p.size * 0.62, _innerPaint);
     }
   }
 }
@@ -182,27 +202,29 @@ class _MistParticle {
   });
 }
 
-class RainEffect extends Component {
+class RainEffect extends Component with HasGameReference<DarkbladeGame> {
   final List<_RainDrop> _drops = [];
   final Random _rng = Random();
   final double _width;
   final double _height;
+  final Paint _paint = Paint();
 
   RainEffect(this._width, this._height) {
-    for (var i = 0; i < 80; i++) {
+    for (var i = 0; i < 48; i++) {
       _resetDrop(i % 2 == 0);
     }
   }
 
   void _resetDrop([bool init = false]) {
-    _drops.add(_RainDrop(
-      x: _rng.nextDouble() * _width,
-      y: init ? _rng.nextDouble() * _height : -10,
-      length: 8 + _rng.nextDouble() * 12,
-      speed: 300 + _rng.nextDouble() * 200,
-      alpha: 0.2 + _rng.nextDouble() * 0.3,
-    ));
-    if (_drops.length > 80) _drops.removeAt(0);
+    _drops.add(
+      _RainDrop(
+        x: _rng.nextDouble() * _width,
+        y: init ? _rng.nextDouble() * _height : -10,
+        length: 8 + _rng.nextDouble() * 12,
+        speed: 300 + _rng.nextDouble() * 200,
+        alpha: 0.2 + _rng.nextDouble() * 0.3,
+      ),
+    );
   }
 
   @override
@@ -211,17 +233,24 @@ class RainEffect extends Component {
     for (final d in _drops) {
       d.y += d.speed * dt;
       d.x += 40 * dt;
+      if (d.y > _height || d.x > _width) {
+        d.x = _rng.nextDouble() * _width;
+        d.y = -d.length;
+      }
     }
-    _drops.removeWhere((d) => d.y > _height || d.x > _width);
-    while (_drops.length < 80) _resetDrop();
   }
 
   @override
   void render(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xAA7B9DB5);
-    for (final d in _drops) {
-      paint.color = const Color(0xAA7B9DB5).withValues(alpha: d.alpha);
-      canvas.drawLine(Offset(d.x, d.y), Offset(d.x - 3, d.y - d.length), paint);
+    final stride = game.lowFpsMode ? 3 : 1;
+    for (var i = 0; i < _drops.length; i += stride) {
+      final d = _drops[i];
+      _paint.color = const Color(0xAA7B9DB5).withValues(alpha: d.alpha);
+      canvas.drawLine(
+        Offset(d.x, d.y),
+        Offset(d.x - 3, d.y - d.length),
+        _paint,
+      );
     }
   }
 }
@@ -237,22 +266,25 @@ class _RainDrop {
   });
 }
 
-class AshFallEffect extends Component {
+class AshFallEffect extends Component with HasGameReference<DarkbladeGame> {
   final List<_AshParticle> _particles = [];
   final Random _rng = Random();
   final double _width;
   final double _height;
+  final Paint _paint = Paint();
 
   AshFallEffect(this._width, this._height) {
-    for (var i = 0; i < 50; i++) {
-      _particles.add(_AshParticle(
-        x: _rng.nextDouble() * _width,
-        y: _rng.nextDouble() * _height,
-        size: 1 + _rng.nextDouble() * 3,
-        speedY: 20 + _rng.nextDouble() * 40,
-        speedX: -5 + _rng.nextDouble() * 10,
-        alpha: 0.3 + _rng.nextDouble() * 0.4,
-      ));
+    for (var i = 0; i < 22; i++) {
+      _particles.add(
+        _AshParticle(
+          x: _rng.nextDouble() * _width,
+          y: _rng.nextDouble() * _height,
+          size: 1 + _rng.nextDouble() * 3,
+          speedY: 20 + _rng.nextDouble() * 40,
+          speedX: -5 + _rng.nextDouble() * 10,
+          alpha: 0.3 + _rng.nextDouble() * 0.4,
+        ),
+      );
     }
   }
 
@@ -262,16 +294,20 @@ class AshFallEffect extends Component {
     for (final p in _particles) {
       p.x += p.speedX * dt;
       p.y += p.speedY * dt;
-      if (p.y > _height) { p.y = -5; p.x = _rng.nextDouble() * _width; }
+      if (p.y > _height) {
+        p.y = -5;
+        p.x = _rng.nextDouble() * _width;
+      }
     }
   }
 
   @override
   void render(Canvas canvas) {
-    final paint = Paint();
-    for (final p in _particles) {
-      paint.color = const Color(0xFF888888).withValues(alpha: p.alpha);
-      canvas.drawCircle(Offset(p.x, p.y), p.size, paint);
+    final stride = game.lowFpsMode ? 3 : 1;
+    for (var i = 0; i < _particles.length; i += stride) {
+      final p = _particles[i];
+      _paint.color = const Color(0xFF888888).withValues(alpha: p.alpha);
+      canvas.drawCircle(Offset(p.x, p.y), p.size, _paint);
     }
   }
 }

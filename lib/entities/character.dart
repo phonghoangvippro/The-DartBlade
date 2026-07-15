@@ -17,8 +17,8 @@ abstract class Character extends PositionComponent
     required Vector2 position,
     required Vector2 size,
     required double maxHp,
-  })  : health = Health(maxHp),
-        super(position: position, size: size);
+  }) : health = Health(maxHp),
+       super(position: position, size: size);
 
   final Health health;
 

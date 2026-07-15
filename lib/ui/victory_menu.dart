@@ -37,7 +37,11 @@ class VictoryMenu extends StatelessWidget {
               'The Darkblade rests at last.\n'
               'Its secret dies with the Dark King.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 15, height: 1.6),
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 15,
+                height: 1.6,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
@@ -58,8 +62,10 @@ class VictoryMenu extends StatelessWidget {
                   game.phase = GamePhase.menu;
                   game.overlays.add(OverlayIds.mainMenu);
                 },
-                child: const Text('MAIN MENU',
-                    style: TextStyle(letterSpacing: 3)),
+                child: const Text(
+                  'MAIN MENU',
+                  style: TextStyle(letterSpacing: 3),
+                ),
               ),
             ),
           ],

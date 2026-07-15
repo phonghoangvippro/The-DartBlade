@@ -8,8 +8,7 @@ import '../game/darkblade_game.dart';
 
 /// Floor spikes: deal contact damage to the player (collision matrix:
 /// Player x Trap).
-class SpikeTrap extends PositionComponent
-    with HasGameReference<DarkbladeGame> {
+class SpikeTrap extends PositionComponent with HasGameReference<DarkbladeGame> {
   SpikeTrap({
     required Vector2 position,
     required double width,
@@ -26,11 +25,15 @@ class SpikeTrap extends PositionComponent
     final player = game.player;
     if (player.isDead || player.isInvincible) return;
     if (player.toRect().overlaps(toRect())) {
-      player.receiveDamage(DamageInfo(
-        amount: damage,
-        knockbackDirection:
-            player.absoluteCenter.x >= absoluteCenter.x ? 1 : -1,
-      ));
+      player.receiveDamage(
+        DamageInfo(
+          amount: damage,
+          knockbackDirection: player.absoluteCenter.x >= absoluteCenter.x
+              ? 1
+              : -1,
+          sourcePosition: absoluteCenter.clone(),
+        ),
+      );
     }
   }
 

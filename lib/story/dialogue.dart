@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' hide Animation;
 
 import '../core/constants/game_constants.dart';
 import '../game/darkblade_game.dart';
+import 'story_models.dart';
 
 class DialogueLine {
   final String speaker;
@@ -57,6 +58,8 @@ class DialogueSequence extends Component with HasGameReference<DarkbladeGame> {
     _charTimer = 0;
     if (_currentIndex >= _lines.length) {
       _finished = true;
+      removeFromParent();
+      onComplete?.call();
     }
   }
 
@@ -161,39 +164,7 @@ class DialogueSequence extends Component with HasGameReference<DarkbladeGame> {
 }
 
 class IntroCutscene extends Component with HasGameReference<DarkbladeGame> {
-  static const _scenes = [
-    _SceneData(
-      'Lời Nguyền Của Ánh Sáng',
-      'Khi ánh sáng quá chói, nó sinh ra cái bóng đen nhất.\nSolarius không hủy diệt Abyss. Nó chỉ giam cầm bóng tối.',
-      'Mỗi thế kỷ, một người mang phải chết để hàn lại phong ấn.',
-      Color(0xFFB388FF),
-    ),
-    _SceneData(
-      'Tội Lỗi Của Một Người Cha',
-      'Khi con gái bị chọn làm vật hiến tế, Varkhan đã chống lại định mệnh.\nÔng hợp nhất Solarius với Lõi Bóng Tối.',
-      'DARKBLADE ra đời. Mặt trời tắt.\nBầu trời hóa máu.',
-      Color(0xFFFF4444),
-    ),
-    _SceneData(
-      'Đứa Trẻ Không Tên',
-      'Nhiều năm sau, một đứa trẻ được tìm thấy\nbên xác một hiệp sĩ, tay nắm mảnh vỡ Solarius.',
-      'Người dân gọi cậu là Ash.\nKhông ai biết mảnh sáng ấy đang giữ thứ gì trong máu cậu.',
-      Color(0xFFE0C9FF),
-    ),
-    _SceneData(
-      'Ngôi Làng Tro Tàn',
-      'Mưa. Sấm chớp. Quái vật tràn vào làng.\nCha nuôi của Ash ngã xuống cùng một Mảnh Darkblade.',
-      'Khi Ash chạm vào nó... bóng tối bùng lên từ chính máu cậu.',
-      Color(0xFFFF6633),
-    ),
-    _SceneData(
-      'THE DARKBLADE',
-      'Số phận không gọi tên ngươi.\nNgươi CHÍNH LÀ số phận.',
-      '',
-      Color(0xFF7B2FF2),
-    ),
-  ];
-
+  final List<CinematicScene> _scenes;
   final VoidCallback? onComplete;
   double _timer = 0;
   int _sceneIndex = 0;
@@ -201,7 +172,8 @@ class IntroCutscene extends Component with HasGameReference<DarkbladeGame> {
   bool _fadeOut = false;
   bool _finished = false;
 
-  IntroCutscene({this.onComplete}) {
+  IntroCutscene({required List<CinematicScene> scenes, this.onComplete})
+    : _scenes = scenes {
     priority = GameConstants.priorityFx + 200;
   }
 
@@ -323,12 +295,4 @@ class IntroCutscene extends Component with HasGameReference<DarkbladeGame> {
       canvas.restore();
     }
   }
-}
-
-class _SceneData {
-  final String title;
-  final String line1;
-  final String line2;
-  final Color color;
-  const _SceneData(this.title, this.line1, this.line2, this.color);
 }

@@ -10,14 +10,8 @@ import '../inventory/item.dart';
 
 /// A dropped item lying in the world; collected on player touch (FR-028).
 class Pickup extends PositionComponent with HasGameReference<DarkbladeGame> {
-  Pickup({
-    required Vector2 position,
-    required this.item,
-  }) : super(
-          position: position,
-          size: Vector2.all(16),
-          anchor: Anchor.center,
-        ) {
+  Pickup({required Vector2 position, required this.item})
+    : super(position: position, size: Vector2.all(16), anchor: Anchor.center) {
     priority = GameConstants.priorityPickup;
   }
 
@@ -30,8 +24,8 @@ class Pickup extends PositionComponent with HasGameReference<DarkbladeGame> {
     _t += dt;
 
     final player = game.player;
-    if (!player.isDead &&
-        player.toRect().overlaps(toRect().inflate(6))) {
+    if ((absoluteCenter.x - player.absoluteCenter.x).abs() > 760) return;
+    if (!player.isDead && player.toRect().overlaps(toRect().inflate(6))) {
       game.inventory.addItem(item);
       game.showToast('Picked up ${item.name}');
       AudioService.instance.playSfx('pickup.wav');
@@ -41,10 +35,12 @@ class Pickup extends PositionComponent with HasGameReference<DarkbladeGame> {
 
   @override
   void render(Canvas canvas) {
+    if (game.playerReady &&
+        (absoluteCenter.x - game.player.absoluteCenter.x).abs() > 760) {
+      return;
+    }
     final bobY = sin(_t * 4) * 3;
-    final glow = Paint()
-      ..color = item.color.withValues(alpha: 0.4)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    final glow = Paint()..color = item.color.withValues(alpha: 0.22);
     final core = Paint()..color = item.color;
 
     final center = Offset(size.x / 2, size.y / 2 + bobY);
@@ -55,9 +51,9 @@ class Pickup extends PositionComponent with HasGameReference<DarkbladeGame> {
         // Potion flask.
         canvas.drawCircle(center, 5, core);
         canvas.drawRect(
-            Rect.fromCenter(
-                center: center.translate(0, -6), width: 3, height: 4),
-            core);
+          Rect.fromCenter(center: center.translate(0, -6), width: 3, height: 4),
+          core,
+        );
         break;
       case ItemType.weapon:
         canvas.save();

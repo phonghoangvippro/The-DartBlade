@@ -31,8 +31,7 @@ class Inventory extends ChangeNotifier {
   /// FR-028: add a picked-up item.
   void addItem(Item item, [int count = 1]) {
     if (item.stackable) {
-      final existing =
-          _stacks.where((s) => s.item.id == item.id).toList();
+      final existing = _stacks.where((s) => s.item.id == item.id).toList();
       if (existing.isNotEmpty) {
         existing.first.count += count;
         notifyListeners();
@@ -91,12 +90,12 @@ class Inventory extends ChangeNotifier {
 
   // ------------------------------------------------------------------- save
   Map<String, dynamic> toJson() => {
-        'stacks': [
-          for (final s in _stacks) {'id': s.item.id, 'count': s.count},
-        ],
-        'weapon': equippedWeapon?.id,
-        'armor': equippedArmor?.id,
-      };
+    'stacks': [
+      for (final s in _stacks) {'id': s.item.id, 'count': s.count},
+    ],
+    'weapon': equippedWeapon?.id,
+    'armor': equippedArmor?.id,
+  };
 
   void restoreFromJson(Map<String, dynamic> json) {
     _stacks.clear();

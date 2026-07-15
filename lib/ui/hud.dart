@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -15,34 +16,24 @@ class Hud extends StatefulWidget {
   State<Hud> createState() => _HudState();
 }
 
-class _HudState extends State<Hud> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseCtrl;
-  int _lastRebuildMs = 0;
+class _HudState extends State<Hud> {
+  Timer? _refreshTimer;
+  double _pulsePhase = 0;
 
   @override
   void initState() {
     super.initState();
-    _pulseCtrl =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2))
-          ..addListener(_tick)
-          ..repeat();
+    _refreshTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!mounted) return;
+      _pulsePhase = (_pulsePhase + 0.05) % 1.0;
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
+    _refreshTimer?.cancel();
     super.dispose();
-  }
-
-  void _tick() {
-    if (!mounted) return;
-    if (widget.game.phase != GamePhase.playing || !widget.game.playerReady) {
-      return;
-    }
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastRebuildMs < 33) return;
-    _lastRebuildMs = now;
-    setState(() {});
   }
 
   @override
@@ -54,7 +45,7 @@ class _HudState extends State<Hud> with SingleTickerProviderStateMixin {
 
     final player = game.player;
     final rightPad = game.touchControlsEnabled ? 80.0 : 12.0;
-    final pulse = sin(_pulseCtrl.value * 2 * pi) * 0.5 + 0.5;
+    final pulse = sin(_pulsePhase * 2 * pi) * 0.5 + 0.5;
 
     return IgnorePointer(
       child: Padding(
@@ -67,7 +58,14 @@ class _HudState extends State<Hud> with SingleTickerProviderStateMixin {
               children: [
                 _statBars(player, pulse),
                 const Spacer(),
-                _soulsCounter(player.stats.souls, pulse),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _fpsCounter(game.fps),
+                    const SizedBox(height: 5),
+                    _soulsCounter(player.stats.souls, pulse),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -78,6 +76,32 @@ class _HudState extends State<Hud> with SingleTickerProviderStateMixin {
             const SizedBox(height: 4),
             if (!game.touchControlsEnabled) _controlsHint(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fpsCounter(double fps) {
+    final value = fps.round();
+    final color = value >= 50
+        ? const Color(0xFF77FFAA)
+        : value >= 30
+        ? const Color(0xFFFFCC66)
+        : const Color(0xFFFF6666);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        border: Border.all(color: color.withValues(alpha: 0.65)),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        '$value FPS',
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
         ),
       ),
     );

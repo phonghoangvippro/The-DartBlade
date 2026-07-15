@@ -8,6 +8,7 @@ class Health {
   double current;
 
   bool get isDead => current <= 0;
+  bool get isFull => current >= max;
   double get ratio => max <= 0 ? 0 : (current / max).clamp(0.0, 1.0);
 
   /// Applies damage, returns actual amount dealt.

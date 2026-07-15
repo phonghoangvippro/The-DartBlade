@@ -13,7 +13,7 @@ import '../core/utils/math_utils.dart';
 import '../effects/darkblade_effects.dart';
 import '../entities/character.dart';
 import '../game/darkblade_game.dart';
-import '../weapon/blade_wave.dart';
+import '../story/dialogue.dart';
 import 'boss_phase.dart';
 
 // =============================================================================
@@ -117,10 +117,16 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
   bool _raging = false;
   double _flyHeight = 0;
   bool _teleported = false;
+  int _skillStage = 0;
+  bool _summonTriggered = false;
+  bool _criticalLorePlayed = false;
+  bool _deathLorePlayed = false;
 
   late final AttackHitbox _meleeHitbox;
   final DamageCalculator _damageCalc = DamageCalculator();
   final Random _rng = Random();
+  late double _arenaMinX;
+  late double _arenaMaxX;
 
   BossPhaseConfig get phaseConfig => BossPhaseConfig.configs[phase]!;
 
@@ -147,6 +153,11 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
 
   @override
   Future<void> onLoad() async {
+    _arenaMinX = max(20, position.x - 340);
+    _arenaMaxX = min(
+      game.currentLevel!.definition.worldSize.width - size.x - 20,
+      position.x + 340,
+    );
     add(
       Hurtbox(
         owner: this,
@@ -166,6 +177,7 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
           amount: r.amount,
           knockbackDirection: facing.toDouble(),
           knockbackForce: GameConfig.knockbackX * 1.4,
+          sourcePosition: absoluteCenter.clone(),
         );
       },
       size: Vector2(size.x * 1.1, size.y * 0.7),
@@ -262,7 +274,8 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
 
       case BossState.summon:
         velocity.x = 0;
-        if (_stateTimer >= 0.8 && _stateTimer < 0.9) {
+        if (_stateTimer >= 0.8 && !_summonTriggered) {
+          _summonTriggered = true;
           _summonMinions();
         }
         if (_stateTimer >= 1.5) {
@@ -277,8 +290,8 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
           _teleported = true;
           final side = _rng.nextBool() ? -1 : 1;
           position.x = (game.player.position.x + side * 200).clamp(
-            50,
-            game.currentLevel!.definition.worldSize.width - 50,
+            _arenaMinX,
+            _arenaMaxX,
           );
           game.shakeCamera(intensity: 4, duration: 0.2);
           game.gameWorld.add(
@@ -317,6 +330,13 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     }
 
     applyPhysics(dt);
+    if (state != BossState.dead) {
+      position.x = position.x.clamp(_arenaMinX, _arenaMaxX);
+      if ((position.x <= _arenaMinX && velocity.x < 0) ||
+          (position.x >= _arenaMaxX && velocity.x > 0)) {
+        velocity.x = 0;
+      }
+    }
   }
 
   void _chooseAction(double distance) {
@@ -383,7 +403,8 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     final behavior = archetype.behavior;
     switch (behavior) {
       case BossBehavior.knight:
-        if (_stateTimer >= 0.4 && _stateTimer < 0.42) {
+        if (_stateTimer >= 0.4 && _skillStage == 0) {
+          _skillStage = 1;
           _fireProjectile(0);
         }
         if (_stateTimer >= 1.0) {
@@ -392,7 +413,8 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
         }
         break;
       case BossBehavior.treant:
-        if (_stateTimer >= 0.5 && _stateTimer < 0.52) {
+        if (_stateTimer >= 0.5 && _skillStage == 0) {
+          _skillStage = 1;
           for (var i = -2; i <= 2; i++) {
             _fireGroundProjectile(i * 30);
           }
@@ -403,7 +425,8 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
         }
         break;
       case BossBehavior.queen:
-        if (_stateTimer >= 0.3 && _stateTimer < 0.32) {
+        if (_stateTimer >= 0.3 && _skillStage == 0) {
+          _skillStage = 1;
           for (var i = -1; i <= 1; i++) {
             _fireProjectile(i * 25);
           }
@@ -417,12 +440,14 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
         }
         break;
       case BossBehavior.varkhan:
-        if (_stateTimer >= 0.3 && _stateTimer < 0.32) {
+        if (_stateTimer >= 0.3 && _skillStage == 0) {
+          _skillStage = 1;
           for (var i = -3; i <= 3; i++) {
             _fireProjectile(i * 15);
           }
         }
-        if (_stateTimer >= 0.7 && _stateTimer < 0.72) {
+        if (_stateTimer >= 0.7 && _skillStage == 1) {
+          _skillStage = 2;
           for (var i = -2; i <= 2; i++) {
             _fireProjectile(i * 20);
           }
@@ -436,29 +461,26 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
   }
 
   void _fireProjectile(double yOffset) {
-    game.gameWorld.add(
-      BladeWave(
-        position: absoluteCenter + Vector2(facing * 40, yOffset),
-        direction: facing,
-        damage: archetype.attack * 0.7 * phaseConfig.damageMultiplier,
-        faction: faction,
-        maxDistance: 500,
-        color: archetype.auraColor,
-      ),
+    game.spawnBladeWave(
+      position: absoluteCenter + Vector2(facing * 40, yOffset),
+      direction: facing,
+      damage: archetype.attack * 0.7 * phaseConfig.damageMultiplier,
+      faction: faction,
+      maxDistance: 500,
+      color: archetype.auraColor,
     );
   }
 
   void _fireGroundProjectile(double xOffset) {
-    final proj = BladeWave(
+    game.spawnBladeWave(
       position: absoluteCenter + Vector2(xOffset, size.y * 0.4),
       direction: 0,
       damage: archetype.attack * 0.5 * phaseConfig.damageMultiplier,
       faction: faction,
       maxDistance: 400,
       color: const Color(0xFF44AA44),
+      velocityY: 200,
     );
-    proj.velocityY = 200;
-    game.gameWorld.add(proj);
   }
 
   void _summonMinions() {
@@ -475,6 +497,8 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
   void _setState(BossState next) {
     state = next;
     _stateTimer = 0;
+    _skillStage = 0;
+    _summonTriggered = false;
   }
 
   @override
@@ -504,6 +528,21 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     hurtTimer = 0.15;
     _updatePhase();
 
+    if (!health.isDead &&
+        health.ratio <= 0.05 &&
+        !_criticalLorePlayed &&
+        archetype.behavior == BossBehavior.queen) {
+      _criticalLorePlayed = true;
+      _meleeHitbox.deactivate();
+      game.showDialogue(const [
+        DialogueLine(
+          speaker: 'PRINCESS ELENIA',
+          text: 'Xin lỗi...\n\nCha...',
+          color: Color(0xFFFF7799),
+        ),
+      ]);
+    }
+
     if (health.isDead) onDeath();
   }
 
@@ -516,6 +555,17 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
       game.shakeCamera(intensity: 8, duration: 0.6);
       game.showToast('${archetype.name} enters RAGE!');
       AudioService.instance.playSfx('boss_rage.wav');
+      if (archetype.behavior == BossBehavior.varkhan) {
+        _meleeHitbox.deactivate();
+        game.showDialogue(const [
+          DialogueLine(
+            speaker: 'KING VARKHAN',
+            text:
+                'Nếu phải trở thành quái vật...\nđể cứu con gái...\n\nTA SẼ GIẾT CẢ THẦN LINH!',
+            color: Color(0xFFFF3344),
+          ),
+        ]);
+      }
     } else if (ratio <= GameConfig.bossPhase2Threshold &&
         phase == BossPhase.phase1) {
       phase = BossPhase.phase2;
@@ -530,7 +580,6 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     _meleeHitbox.deactivate();
     velocity.setZero();
     game.player.stats.souls += archetype.soulsReward;
-    game.onBossDefeated(this);
     AudioService.instance.playSfx('boss_death.wav');
 
     game.gameWorld.add(
@@ -544,12 +593,28 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
 
     if (archetype.behavior == BossBehavior.knight) {
       game.player.unlockDash = true;
-      game.showToast('New Skill Unlocked: DASH!');
+      game.showToast('DASH mastery increased!');
+      if (!_deathLorePlayed) {
+        _deathLorePlayed = true;
+        game.showDialogue(const [
+          DialogueLine(
+            speaker: 'SIR ALDRIC',
+            text: 'Cuối cùng...\n\nta cũng tìm được ngươi...',
+            color: Color(0xFFE0C9FF),
+          ),
+        ], onComplete: () => game.onBossDefeated(this));
+        return;
+      }
     }
+    game.onBossDefeated(this);
   }
 
   @override
   void render(Canvas canvas) {
+    if (game.playerReady &&
+        (absoluteCenter.x - game.player.absoluteCenter.x).abs() > 700) {
+      return;
+    }
     canvas.save();
     if (facing < 0) {
       canvas.translate(size.x, 0);
@@ -575,9 +640,7 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
           ),
           const Radius.circular(20),
         ),
-        Paint()
-          ..color = archetype.auraColor.withValues(alpha: 0.15 * pulse)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
+        Paint()..color = archetype.auraColor.withValues(alpha: 0.08 * pulse),
       );
     }
 
@@ -591,9 +654,7 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
           Rect.fromLTWH(-4, -4, size.x + 8, size.y + 4),
           const Radius.circular(12),
         ),
-        Paint()
-          ..color = phaseColor
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8),
+        Paint()..color = phaseColor.withValues(alpha: 0.18),
       );
     }
 
@@ -961,8 +1022,7 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     // Wings (phase 2+)
     if (phase != BossPhase.phase1) {
       final wingPaint = Paint()
-        ..color = const Color(0xFF4A0A1A).withValues(alpha: 0.6)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+        ..color = const Color(0xFF4A0A1A).withValues(alpha: 0.55);
       for (var side = -1; side <= 1; side += 2) {
         final wingPath = Path()
           ..moveTo(size.x * 0.5, size.y * 0.3 + bob)
@@ -988,9 +1048,7 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
       canvas.drawCircle(
         Offset(size.x * 0.5, size.y * 0.4 + bob),
         size.x * 0.5,
-        Paint()
-          ..color = const Color(0x22FF0044)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15),
+        Paint()..color = const Color(0x18FF0044),
       );
     }
 
@@ -1020,13 +1078,24 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
 
     final bob = sin(t * 2) * 2;
 
+    // Torn mantle trails behind him like living shadow.
+    final mantle = Path()
+      ..moveTo(size.x * 0.18, size.y * 0.28 + bob)
+      ..quadraticBezierTo(
+        -size.x * 0.35,
+        size.y * 0.48,
+        -size.x * 0.2 + sin(t * 1.7) * 8,
+        size.y,
+      )
+      ..lineTo(size.x * 0.42, size.y * 0.82)
+      ..close();
+    canvas.drawPath(mantle, Paint()..color = const Color(0xCC090014));
+
     // Dark aura
     canvas.drawCircle(
       Offset(size.x * 0.5, size.y * 0.5 + bob),
       size.x * 0.7,
-      Paint()
-        ..color = const Color(0x1A1A0020)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20),
+      Paint()..color = const Color(0x121A0020),
     );
 
     // Armor body
@@ -1041,6 +1110,27 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
         const Radius.circular(10),
       ),
       Paint()..color = const Color(0xFF1A0A2E),
+    );
+
+    // Lava veins split the armor from within.
+    final armorCrack = Paint()
+      ..color = const Color(
+        0xFFFF3B18,
+      ).withValues(alpha: 0.55 + sin(t * 4) * 0.25)
+      ..strokeWidth = 2;
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.x * 0.3, size.y * 0.28 + bob)
+        ..lineTo(size.x * 0.46, size.y * 0.43 + bob)
+        ..lineTo(size.x * 0.38, size.y * 0.62 + bob),
+      armorCrack,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.x * 0.72, size.y * 0.31 + bob)
+        ..lineTo(size.x * 0.58, size.y * 0.5 + bob)
+        ..lineTo(size.x * 0.7, size.y * 0.7 + bob),
+      armorCrack,
     );
 
     // Armor trim (red glow)
@@ -1091,6 +1181,18 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
       ..close();
     canvas.drawPath(hornR, hornPaint);
 
+    // Half-broken crown: one side still remembers the king he was.
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.x * 0.3, size.y * 0.04 + bob)
+        ..lineTo(size.x * 0.34, size.y * -0.08 + bob)
+        ..lineTo(size.x * 0.43, size.y * 0.0 + bob)
+        ..lineTo(size.x * 0.5, size.y * -0.12 + bob)
+        ..lineTo(size.x * 0.54, size.y * 0.04 + bob)
+        ..close(),
+      Paint()..color = const Color(0xFF8C6738),
+    );
+
     // Glowing eyes (void black with red flame)
     canvas.drawCircle(
       Offset(size.x * 0.42, size.y * 0.12 + bob),
@@ -1105,8 +1207,7 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     final flamePaint = Paint()
       ..color = const Color(
         0xFFFF4400,
-      ).withValues(alpha: 0.6 + sin(t * 3) * 0.3)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
+      ).withValues(alpha: 0.6 + sin(t * 3) * 0.3);
     canvas.drawCircle(
       Offset(size.x * 0.42, size.y * 0.12 + bob),
       3,
@@ -1128,8 +1229,9 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
     canvas.drawRect(
       Rect.fromLTWH(-3, -size.y * 0.1, size.x * 1.5 + 6, size.y * 0.9 + 6),
       Paint()
-        ..color = const Color(0x44FF0000).withValues(alpha: bladeProgress * 0.5)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8),
+        ..color = const Color(
+          0x44FF0000,
+        ).withValues(alpha: bladeProgress * 0.22),
     );
     // Blade body
     canvas.drawRect(
@@ -1157,43 +1259,47 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
 
     canvas.restore();
 
-    // Phase 2: Dark wings
+    // Phase 2: dark wings. Phase 3 opens three pairs.
     if (phase != BossPhase.phase1) {
       final wingPaint = Paint()
-        ..color = const Color(0xFF0A0020).withValues(alpha: 0.7)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
-      for (var side = -1; side <= 1; side += 2) {
-        final wingPath = Path()
-          ..moveTo(size.x * 0.5, size.y * 0.2 + bob)
-          ..quadraticBezierTo(
-            size.x * (0.5 + side * 0.5),
-            size.y * (-0.1),
-            size.x * (0.5 + side * 1.0),
-            size.y * 0.1 + sin(t * 2) * 8,
-          )
-          ..quadraticBezierTo(
-            size.x * (0.5 + side * 0.7),
-            size.y * 0.5,
-            size.x * 0.5,
-            size.y * 0.35 + bob,
-          )
-          ..close();
-        canvas.drawPath(wingPath, wingPaint);
+        ..color = const Color(0xFF0A0020).withValues(alpha: 0.62);
+      final wingPairs = phase == BossPhase.phase3 ? 3 : 1;
+      for (var pair = 0; pair < wingPairs; pair++) {
+        for (var side = -1; side <= 1; side += 2) {
+          final spread = 1.0 - pair * 0.18;
+          final lift = pair * size.y * 0.12;
+          final wingPath = Path()
+            ..moveTo(size.x * 0.5, size.y * 0.2 + bob + lift)
+            ..quadraticBezierTo(
+              size.x * (0.5 + side * 0.5),
+              size.y * (-0.1) + lift,
+              size.x * (0.5 + side * spread),
+              size.y * 0.1 + lift + sin(t * 2 + pair) * 8,
+            )
+            ..quadraticBezierTo(
+              size.x * (0.5 + side * 0.7),
+              size.y * 0.5,
+              size.x * 0.5,
+              size.y * 0.35 + bob,
+            )
+            ..close();
+          canvas.drawPath(wingPath, wingPaint);
 
-        // Wing membrane lines
-        for (var i = 0; i < 3; i++) {
-          final path = Path()
-            ..moveTo(size.x * 0.5, size.y * 0.2 + bob)
-            ..lineTo(
-              size.x * (0.5 + side * (0.5 + i * 0.2)),
-              size.y * (0.1 + i * 0.12) + sin(t + i.toDouble()) * 5,
+          // Wing membrane lines
+          for (var i = 0; i < 3; i++) {
+            final path = Path()
+              ..moveTo(size.x * 0.5, size.y * 0.2 + bob)
+              ..lineTo(
+                size.x * (0.5 + side * (0.5 + i * 0.2)),
+                size.y * (0.1 + i * 0.12) + sin(t + i.toDouble()) * 5,
+              );
+            canvas.drawPath(
+              path,
+              Paint()
+                ..color = const Color(0xFF1A0A3E).withValues(alpha: 0.5)
+                ..strokeWidth = 1.5,
             );
-          canvas.drawPath(
-            path,
-            Paint()
-              ..color = const Color(0xFF1A0A3E).withValues(alpha: 0.5)
-              ..strokeWidth = 1.5,
-          );
+          }
         }
       }
     }
@@ -1204,14 +1310,13 @@ class Boss extends Character with HasGameReference<DarkbladeGame> {
       canvas.drawCircle(
         Offset(size.x * 0.5, size.y * 0.5 + bob),
         size.x * 0.9,
-        Paint()
-          ..color = const Color(0x22FF0000)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 25),
+        Paint()..color = const Color(0x16FF0000),
       );
       // Shadow tendrils
       final tendrilPaint = Paint()
-        ..color = const Color(0x2FFF0000)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6);
+        ..color = const Color(0x24FF0000)
+        ..strokeWidth = 5
+        ..style = PaintingStyle.stroke;
       for (var i = 0; i < 5; i++) {
         final angle = pi * 2 * i / 5 + t * 0.5;
         final path = Path()

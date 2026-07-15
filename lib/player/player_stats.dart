@@ -39,7 +39,10 @@ class PlayerStats {
 
   void regenerate(double dt) {
     stamina = MathUtils.clampDouble(
-        stamina + GameConfig.staminaRegen * dt, 0, maxStamina);
+      stamina + GameConfig.staminaRegen * dt,
+      0,
+      maxStamina,
+    );
     mana = MathUtils.clampDouble(mana + GameConfig.manaRegen * dt, 0, maxMana);
   }
 }

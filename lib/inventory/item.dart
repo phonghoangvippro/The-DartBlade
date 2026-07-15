@@ -25,8 +25,7 @@ class Item {
   final Color color;
   final bool stackable;
 
-  bool get isEquippable =>
-      type == ItemType.weapon || type == ItemType.armor;
+  bool get isEquippable => type == ItemType.weapon || type == ItemType.armor;
 
   static const healthPotion = Item(
     id: 'health_potion',
