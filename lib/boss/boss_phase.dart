@@ -1,11 +1,18 @@
-/// Boss phases (plan section 11):
-///   Phase 1: 100%..70%  - normal attacks
-///   Phase 2:  70%..30%  - adds special skill (projectiles)
-///   Phase 3:  30%..0%   - ultimate + rage (faster, stronger)
 enum BossPhase { phase1, phase2, phase3 }
 
-/// Behavior states of the boss.
-enum BossState { dormant, intro, idle, walk, attack, skill, ultimate, dead }
+enum BossState {
+  dormant,
+  intro,
+  idle,
+  walk,
+  attack,
+  skill,
+  ultimate,
+  dead,
+  summon,
+  teleport,
+  fly,
+}
 
 class BossPhaseConfig {
   const BossPhaseConfig({
@@ -14,6 +21,9 @@ class BossPhaseConfig {
     required this.damageMultiplier,
     this.usesSkill = false,
     this.usesUltimate = false,
+    this.usesSummon = false,
+    this.usesTeleport = false,
+    this.usesFlight = false,
   });
 
   final double moveSpeed;
@@ -21,6 +31,9 @@ class BossPhaseConfig {
   final double damageMultiplier;
   final bool usesSkill;
   final bool usesUltimate;
+  final bool usesSummon;
+  final bool usesTeleport;
+  final bool usesFlight;
 
   static const configs = <BossPhase, BossPhaseConfig>{
     BossPhase.phase1: BossPhaseConfig(
@@ -35,11 +48,12 @@ class BossPhaseConfig {
       usesSkill: true,
     ),
     BossPhase.phase3: BossPhaseConfig(
-      moveSpeed: 125,
-      attackCooldown: 0.85,
+      moveSpeed: 130,
+      attackCooldown: 0.8,
       damageMultiplier: 1.5,
       usesSkill: true,
       usesUltimate: true,
+      usesSummon: true,
     ),
   };
 }

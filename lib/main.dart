@@ -17,7 +17,6 @@ import 'ui/victory_menu.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Landscape only + fullscreen for the best play experience.
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -73,9 +72,7 @@ class _DarkbladeAppState extends State<DarkbladeApp> {
                     CircularProgressIndicator(color: Color(0xFF7B2FF2)),
               ),
             ),
-            // HUD sits between the canvas and the modal overlays.
             Positioned.fill(child: Hud(game: _game)),
-            // Virtual buttons for mobile (auto-hidden on desktop).
             Positioned.fill(child: TouchControls(game: _game)),
           ],
         ),

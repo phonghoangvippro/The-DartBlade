@@ -22,7 +22,8 @@ class _SettingsMenuState extends State<SettingsMenu> {
     return Container(
       color: Colors.black.withValues(alpha: 0.8),
       child: Center(
-        child: Container(
+        child: SingleChildScrollView(
+          child: Container(
           width: 420,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -79,6 +80,7 @@ class _SettingsMenuState extends State<SettingsMenu> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

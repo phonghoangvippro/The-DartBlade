@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../game/darkblade_game.dart';
 
@@ -12,7 +13,12 @@ class TouchControls extends StatefulWidget {
 }
 
 class _TouchControlsState extends State<TouchControls> {
+  static const _refreshInterval = Duration(milliseconds: 50);
+
   DarkbladeGame get game => widget.game;
+  late final Ticker _ticker;
+  Duration _lastRefresh = Duration.zero;
+  bool _wasActive = false;
 
   bool get _active =>
       game.touchControlsEnabled &&
@@ -22,13 +28,25 @@ class _TouchControlsState extends State<TouchControls> {
   @override
   void initState() {
     super.initState();
-    _tick();
+    _ticker = Ticker(_tick)..start();
   }
 
-  void _tick() {
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _releaseAll();
+    super.dispose();
+  }
+
+  void _tick(Duration elapsed) {
     if (!mounted) return;
+    final active = _active;
+    if (_wasActive && !active) _releaseAll();
+    if (active && elapsed - _lastRefresh < _refreshInterval) return;
+    if (!active && active == _wasActive) return;
+    _wasActive = active;
+    _lastRefresh = elapsed;
     setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) => _tick());
   }
 
   void _releaseAll() {
@@ -47,7 +65,6 @@ class _TouchControlsState extends State<TouchControls> {
   @override
   Widget build(BuildContext context) {
     if (!_active) {
-      _releaseAll();
       return const SizedBox.shrink();
     }
     final c = game.player.controller;
@@ -62,11 +79,11 @@ class _TouchControlsState extends State<TouchControls> {
             child: Row(
               children: [
                 _holdButton(
-                  size: 62,
+                  size: 76,
                   child: const Icon(
                     Icons.arrow_left,
                     color: Colors.white60,
-                    size: 36,
+                    size: 56,
                   ),
                   onDown: () => c.touchMoveDirection = -1,
                   onUp: () {
@@ -75,11 +92,11 @@ class _TouchControlsState extends State<TouchControls> {
                 ),
                 const SizedBox(width: 12),
                 _holdButton(
-                  size: 62,
+                  size: 76,
                   child: const Icon(
                     Icons.arrow_right,
                     color: Colors.white60,
-                    size: 36,
+                    size: 56,
                   ),
                   onDown: () => c.touchMoveDirection = 1,
                   onUp: () {

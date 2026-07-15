@@ -10,21 +10,45 @@ import '../core/config/game_config.dart';
 import '../core/constants/game_constants.dart';
 import '../core/services/audio_service.dart';
 import '../core/utils/math_utils.dart';
+import '../effects/darkblade_effects.dart';
 import '../entities/character.dart';
+import '../weapon/blade_wave.dart';
 import '../game/darkblade_game.dart';
 import '../inventory/item.dart';
 import '../world/pickup.dart';
 import 'enemy_ai.dart';
 import 'enemy_state.dart';
 
-/// Data-driven enemy archetype.
+// =============================================================================
+// ENEMY ARCHETYPES
+// =============================================================================
+
 class EnemyArchetype {
+  final String name;
+  final double maxHp;
+  final double attack;
+  final double defense;
+  final Color color;
+  final Color auraColor;
+  final double detectRange;
+  final double attackRange;
+  final double patrolSpeed;
+  final double chaseSpeed;
+  final double attackDuration;
+  final double recoverDuration;
+  final int soulsReward;
+  final double dropChance;
+  final Size size;
+  final EnemyType type;
+
   const EnemyArchetype({
     required this.name,
     required this.maxHp,
     required this.attack,
     required this.defense,
     required this.color,
+    required this.type,
+    this.auraColor = const Color(0xFFFF4444),
     this.detectRange = GameConfig.defaultDetectRange,
     this.attackRange = GameConfig.defaultAttackRange,
     this.patrolSpeed = 40,
@@ -36,68 +60,96 @@ class EnemyArchetype {
     this.size = const Size(30, 44),
   });
 
-  final String name;
-  final double maxHp;
-  final double attack;
-  final double defense;
-  final Color color;
-  final double detectRange;
-  final double attackRange;
-  final double patrolSpeed;
-  final double chaseSpeed;
-  final double attackDuration;
-  final double recoverDuration;
-  final int soulsReward;
-  final double dropChance;
-  final Size size;
-
-  static const hollowSoldier = EnemyArchetype(
-    name: 'Hollow Soldier',
-    maxHp: 45,
-    attack: 10,
-    defense: 2,
+  // Chapter 1: Village of Ashes
+  static const zombie = EnemyArchetype(
+    name: 'Zombie',
+    maxHp: 40,
+    attack: 8,
+    defense: 1,
     color: Color(0xFF5A6B4E),
-  );
-
-  static const caveBat = EnemyArchetype(
-    name: 'Cave Bat',
-    maxHp: 24,
-    attack: 7,
-    defense: 0,
-    color: Color(0xFF4E4260),
-    detectRange: 190,
-    chaseSpeed: 130,
-    soulsReward: 10,
-    size: Size(26, 24),
-  );
-
-  static const cursedKnight = EnemyArchetype(
-    name: 'Cursed Knight',
-    maxHp: 90,
-    attack: 16,
-    defense: 6,
-    color: Color(0xFF6B3F3F),
-    patrolSpeed: 30,
-    chaseSpeed: 80,
+    type: EnemyType.zombie,
+    patrolSpeed: 25,
+    chaseSpeed: 70,
     attackDuration: 0.7,
-    recoverDuration: 0.9,
-    soulsReward: 40,
-    dropChance: 0.6,
-    size: Size(36, 50),
+    recoverDuration: 0.8,
+    soulsReward: 10,
+    dropChance: 0.3,
+    size: Size(30, 44),
+  );
+
+  static const skeleton = EnemyArchetype(
+    name: 'Skeleton',
+    maxHp: 55,
+    attack: 14,
+    defense: 3,
+    color: Color(0xFFC4B89E),
+    auraColor: Color(0xFFFFAA44),
+    type: EnemyType.skeleton,
+    detectRange: 180,
+    attackRange: 48,
+    patrolSpeed: 35,
+    chaseSpeed: 90,
+    attackDuration: 0.5,
+    recoverDuration: 0.7,
+    soulsReward: 20,
+    dropChance: 0.45,
+    size: Size(32, 50),
+  );
+
+  // Chapter 2: Forest of Whispers
+  static const shadowWolf = EnemyArchetype(
+    name: 'Shadow Wolf',
+    maxHp: 70,
+    attack: 18,
+    defense: 2,
+    color: Color(0xFF1A1A2E),
+    auraColor: Color(0xFF4444FF),
+    type: EnemyType.shadowWolf,
+    detectRange: 220,
+    attackRange: 38,
+    patrolSpeed: 50,
+    chaseSpeed: 140,
+    attackDuration: 0.35,
+    recoverDuration: 0.5,
+    soulsReward: 30,
+    dropChance: 0.5,
+    size: Size(40, 32),
+  );
+
+  static const spiritWitch = EnemyArchetype(
+    name: 'Spirit Witch',
+    maxHp: 45,
+    attack: 20,
+    defense: 1,
+    color: Color(0xFF4A2A5A),
+    auraColor: Color(0xFFAA44FF),
+    type: EnemyType.spiritWitch,
+    detectRange: 250,
+    attackRange: 150,
+    patrolSpeed: 20,
+    chaseSpeed: 60,
+    attackDuration: 0.8,
+    recoverDuration: 1.0,
+    soulsReward: 35,
+    dropChance: 0.55,
+    size: Size(28, 52),
   );
 }
 
-/// Regular enemy driven by [EnemyAi] (FR-019..FR-024).
+enum EnemyType { zombie, skeleton, shadowWolf, spiritWitch }
+
+// =============================================================================
+// ENEMY CLASS
+// =============================================================================
+
 class Enemy extends Character
     with HasGameReference<DarkbladeGame>
     implements EnemyBrainHost {
-  Enemy({
-    required super.position,
-    required this.archetype,
-  }) : super(
-          size: Vector2(archetype.size.width, archetype.size.height),
-          maxHp: archetype.maxHp,
-        ) {
+  Enemy({required super.position, required this.archetype})
+    : super(
+        size: Vector2(archetype.size.width, archetype.size.height),
+        maxHp: archetype.maxHp,
+      ) {
     priority = GameConstants.priorityEnemy;
   }
 
@@ -108,6 +160,7 @@ class Enemy extends Character
 
   double _deadTimer = 0;
   double _hitboxWindow = 0;
+  double _rangedCooldown = 0;
 
   @override
   String get faction => 'enemy';
@@ -124,11 +177,13 @@ class Enemy extends Character
       recoverDuration: archetype.recoverDuration,
     );
 
-    add(Hurtbox(
-      owner: this,
-      position: Vector2(2, 2),
-      size: Vector2(size.x - 4, size.y - 4),
-    ));
+    add(
+      Hurtbox(
+        owner: this,
+        position: Vector2(2, 2),
+        size: Vector2(size.x - 4, size.y - 4),
+      ),
+    );
 
     _meleeHitbox = AttackHitbox(
       ownerFaction: faction,
@@ -147,7 +202,6 @@ class Enemy extends Character
     add(_meleeHitbox);
   }
 
-  // -------------------------------------------------------------- brain host
   @override
   void moveHorizontal(double speed) => velocity.x = speed;
 
@@ -164,9 +218,9 @@ class Enemy extends Character
     AudioService.instance.playSfx('enemy_attack.wav');
   }
 
-  // ------------------------------------------------------------------ update
   @override
   void update(double dt) {
+    if (game.phase != GamePhase.playing) return;
     super.update(dt);
 
     if (isDead) {
@@ -176,15 +230,34 @@ class Enemy extends Character
       return;
     }
 
+    _rangedCooldown -= dt;
     final player = game.player;
-    ai.update(AiContext(
-      distanceToPlayer:
-          absoluteCenter.distanceTo(player.absoluteCenter),
-      playerAlive: !player.isDead,
-      dt: dt,
-    ));
+    final distance = absoluteCenter.distanceTo(player.absoluteCenter);
 
-    // Attack hit window management (FR-022).
+    if (distance > 700 &&
+        (ai.state == EnemyState.idle || ai.state == EnemyState.patrol)) {
+      velocity.x = 0;
+      return;
+    }
+
+    // Ranged attack for spirit witch
+    if (archetype.type == EnemyType.spiritWitch &&
+        ai.state == EnemyState.chase &&
+        distance < archetype.attackRange &&
+        distance > 80 &&
+        _rangedCooldown <= 0) {
+      _fireRanged();
+      _rangedCooldown = 2.0;
+    }
+
+    ai.update(
+      AiContext(
+        distanceToPlayer: distance,
+        playerAlive: !player.isDead,
+        dt: dt,
+      ),
+    );
+
     if (_hitboxWindow > 0) {
       _hitboxWindow -= dt;
       _meleeHitbox.position = facing > 0
@@ -197,15 +270,37 @@ class Enemy extends Character
     applyPhysics(dt);
   }
 
-  // ------------------------------------------------------------------ combat
+  void _fireRanged() {
+    game.gameWorld.add(
+      BladeWave(
+        position: absoluteCenter + Vector2(facing * 20, 0),
+        direction: facing,
+        damage: archetype.attack * 0.7,
+        faction: faction,
+        maxDistance: 400,
+        color: archetype.auraColor,
+      ),
+    );
+    AudioService.instance.playSfx('enemy_attack.wav');
+  }
+
   @override
   void receiveDamage(DamageInfo info) {
     if (isDead || isInvincible) return;
-    final amount =
-        (info.amount - archetype.defense).clamp(1.0, double.infinity);
+    final amount = (info.amount - archetype.defense).clamp(
+      1.0,
+      double.infinity,
+    );
     health.damage(amount);
     game.spawnDamageNumber(
-        absoluteCenter - Vector2(0, size.y / 2), amount, info.isCritical);
+      absoluteCenter - Vector2(0, size.y / 2),
+      amount,
+      info.isCritical,
+    );
+
+    game.gameWorld.add(
+      HitSparks(position: absoluteCenter, color: archetype.auraColor, count: 4),
+    );
 
     if (health.isDead) {
       onDeath();
@@ -223,13 +318,19 @@ class Enemy extends Character
     velocity.x = 0;
     AudioService.instance.playSfx('enemy_death.wav');
 
-    // FR-023 / FR-024: reward souls + chance to drop an item.
     game.player.stats.souls += archetype.soulsReward;
-    if (MathUtils.rng.nextDouble() < archetype.dropChance) {
-      game.gameWorld.add(Pickup(
+
+    game.gameWorld.add(
+      DarkEnergyBurst(
         position: absoluteCenter,
-        item: _rollDrop(),
-      ));
+        color: archetype.auraColor,
+        duration: 0.3,
+        maxRadius: 25,
+      ),
+    );
+
+    if (MathUtils.rng.nextDouble() < archetype.dropChance) {
+      game.gameWorld.add(Pickup(position: absoluteCenter, item: _rollDrop()));
     }
   }
 
@@ -240,7 +341,6 @@ class Enemy extends Character
     return Item.knightArmor;
   }
 
-  // ------------------------------------------------------------------ render
   @override
   void render(Canvas canvas) {
     canvas.save();
@@ -253,7 +353,6 @@ class Enemy extends Character
     final baseColor = isDead
         ? archetype.color.withValues(alpha: 1 - (_deadTimer / 1.2))
         : (isHurt ? const Color(0xFFC24B4B) : archetype.color);
-    final paint = Paint()..color = baseColor;
 
     if (isDead) {
       canvas.drawRRect(
@@ -261,69 +360,382 @@ class Enemy extends Character
           Rect.fromLTWH(0, size.y - 10, size.x, 8),
           const Radius.circular(3),
         ),
-        paint,
+        Paint()..color = baseColor,
       );
       canvas.restore();
       return;
     }
 
-    final bob = ai.state == EnemyState.chase || ai.state == EnemyState.patrol
-        ? sin(t * 10).abs() * -2
-        : sin(t * 2.5) * 1.2;
-
-    // Body.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.x * 0.15, size.y * 0.25 + bob, size.x * 0.7,
-            size.y * 0.55),
-        const Radius.circular(4),
-      ),
-      paint,
-    );
-    // Head.
-    canvas.drawCircle(
-        Offset(size.x * 0.5, size.y * 0.18 + bob), size.x * 0.22, paint);
-    // Eye.
-    canvas.drawCircle(
-      Offset(size.x * 0.62, size.y * 0.16 + bob),
-      2.2,
-      Paint()
-        ..color = ai.state == EnemyState.chase ||
-                ai.state == EnemyState.attack
-            ? const Color(0xFFFF5252)
-            : const Color(0xFFCFCFCF),
-    );
-    // Legs.
-    final legSwing = velocity.x.abs() > 1 ? sin(t * 12) * 4 : 0.0;
-    canvas.drawRect(
-        Rect.fromLTWH(size.x * 0.28 + legSwing, size.y * 0.72, 5,
-            size.y * 0.28),
-        paint);
-    canvas.drawRect(
-        Rect.fromLTWH(size.x * 0.58 - legSwing, size.y * 0.72, 5,
-            size.y * 0.28),
-        paint);
-
-    // Attack telegraph: weapon arm.
-    if (ai.state == EnemyState.attack) {
-      canvas.drawRect(
-        Rect.fromLTWH(size.x * 0.8, size.y * 0.35, size.x * 0.7, 4),
-        Paint()..color = const Color(0xFFB9B9C4),
-      );
+    switch (archetype.type) {
+      case EnemyType.zombie:
+        _renderZombie(canvas, t, baseColor);
+      case EnemyType.skeleton:
+        _renderSkeleton(canvas, t, baseColor);
+      case EnemyType.shadowWolf:
+        _renderShadowWolf(canvas, t, baseColor);
+      case EnemyType.spiritWitch:
+        _renderSpiritWitch(canvas, t, baseColor);
     }
 
     canvas.restore();
 
-    // Health bar above the enemy.
     if (health.current < health.max) {
       const barW = 30.0;
       final x = (size.x - barW) / 2;
-      canvas.drawRect(Rect.fromLTWH(x, -8, barW, 4),
-          Paint()..color = const Color(0xAA000000));
+      canvas.drawRect(
+        Rect.fromLTWH(x, -8, barW, 4),
+        Paint()..color = const Color(0xAA000000),
+      );
       canvas.drawRect(
         Rect.fromLTWH(x, -8, barW * health.ratio, 4),
         Paint()..color = const Color(0xFFD64545),
       );
     }
+  }
+
+  void _renderZombie(Canvas canvas, double t, Color baseColor) {
+    final bob = ai.state == EnemyState.chase
+        ? sin(t * 10).abs() * -2
+        : sin(t * 2) * 1.5;
+
+    // Tattered body
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.x * 0.15,
+          size.y * 0.28 + bob,
+          size.x * 0.7,
+          size.y * 0.5,
+        ),
+        const Radius.circular(4),
+      ),
+      Paint()..color = baseColor,
+    );
+
+    // Head
+    canvas.drawCircle(
+      Offset(size.x * 0.5, size.y * 0.18 + bob),
+      size.x * 0.22,
+      Paint()..color = const Color(0xFF6B7B5E),
+    );
+
+    // Empty eyes
+    canvas.drawCircle(
+      Offset(size.x * 0.38, size.y * 0.16 + bob),
+      3,
+      Paint()..color = const Color(0xFF000000),
+    );
+    canvas.drawCircle(
+      Offset(size.x * 0.62, size.y * 0.16 + bob),
+      3,
+      Paint()..color = const Color(0xFF000000),
+    );
+
+    // Mouth tear
+    canvas.drawLine(
+      Offset(size.x * 0.3, size.y * 0.24 + bob),
+      Offset(size.x * 0.7, size.y * 0.22 + bob),
+      Paint()
+        ..color = const Color(0xFF2A1A0A)
+        ..strokeWidth = 2,
+    );
+
+    // Arms (shambling)
+    final armSwing = sin(t * 4) * 3;
+    canvas.drawLine(
+      Offset(size.x * 0.2, size.y * 0.35 + bob),
+      Offset(size.x * (-0.15) + armSwing, size.y * 0.45 + bob),
+      Paint()
+        ..color = baseColor
+        ..strokeWidth = 4,
+    );
+    canvas.drawLine(
+      Offset(size.x * 0.8, size.y * 0.35 + bob),
+      Offset(size.x * 1.15 - armSwing, size.y * 0.45 + bob),
+      Paint()
+        ..color = baseColor
+        ..strokeWidth = 4,
+    );
+
+    // Legs
+    final legSwing = ai.state == EnemyState.chase ? sin(t * 8) * 3 : 0.0;
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.25 + legSwing, size.y * 0.7, 5, size.y * 0.3),
+      Paint()..color = baseColor,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.55 - legSwing, size.y * 0.7, 5, size.y * 0.3),
+      Paint()..color = baseColor,
+    );
+  }
+
+  void _renderSkeleton(Canvas canvas, double t, Color baseColor) {
+    final bob = ai.state == EnemyState.chase
+        ? sin(t * 10).abs() * -2
+        : sin(t * 2.5) * 1.5;
+
+    // Ribcage
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.x * 0.2,
+          size.y * 0.28 + bob,
+          size.x * 0.6,
+          size.y * 0.4,
+        ),
+        const Radius.circular(3),
+      ),
+      Paint()..color = baseColor,
+    );
+
+    // Rib lines
+    for (var i = 0; i < 4; i++) {
+      final y = size.y * (0.32 + i * 0.08) + bob;
+      canvas.drawLine(
+        Offset(size.x * 0.25, y),
+        Offset(size.x * 0.75, y),
+        Paint()
+          ..color = const Color(0xFF3A3A2A).withValues(alpha: 0.5)
+          ..strokeWidth = 1.5,
+      );
+    }
+
+    // Skull
+    canvas.drawCircle(
+      Offset(size.x * 0.5, size.y * 0.16 + bob),
+      size.x * 0.2,
+      Paint()..color = baseColor,
+    );
+
+    // Eye sockets
+    canvas.drawCircle(
+      Offset(size.x * 0.38, size.y * 0.14 + bob),
+      3.5,
+      Paint()..color = const Color(0xFF1A1A0A),
+    );
+    canvas.drawCircle(
+      Offset(size.x * 0.62, size.y * 0.14 + bob),
+      3.5,
+      Paint()..color = const Color(0xFF1A1A0A),
+    );
+
+    // Glowing eyes when aggro
+    if (ai.state == EnemyState.chase || ai.state == EnemyState.attack) {
+      final glow = Paint()
+        ..color = const Color(
+          0xFFFFAA44,
+        ).withValues(alpha: 0.6 + sin(t * 4) * 0.3)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2);
+      canvas.drawCircle(Offset(size.x * 0.38, size.y * 0.14 + bob), 2, glow);
+      canvas.drawCircle(Offset(size.x * 0.62, size.y * 0.14 + bob), 2, glow);
+    }
+
+    // Jaw
+    canvas.drawLine(
+      Offset(size.x * 0.32, size.y * 0.22 + bob),
+      Offset(size.x * 0.68, size.y * 0.22 + bob),
+      Paint()
+        ..color = const Color(0xFF3A3A2A)
+        ..strokeWidth = 2,
+    );
+
+    // Weapon arm (sword)
+    if (ai.state == EnemyState.attack) {
+      canvas.drawLine(
+        Offset(size.x * 0.85, size.y * 0.35 + bob),
+        Offset(size.x * 1.3, size.y * 0.25 + bob),
+        Paint()
+          ..color = const Color(0xFF8A8A7A)
+          ..strokeWidth = 4,
+      );
+    }
+
+    // Legs
+    final legSwing = velocity.x.abs() > 1 ? sin(t * 12) * 3 : 0.0;
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.28 + legSwing, size.y * 0.7, 4, size.y * 0.3),
+      Paint()..color = baseColor,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.58 - legSwing, size.y * 0.7, 4, size.y * 0.3),
+      Paint()..color = baseColor,
+    );
+  }
+
+  void _renderShadowWolf(Canvas canvas, double t, Color baseColor) {
+    final bob = ai.state == EnemyState.chase
+        ? sin(t * 12).abs() * -3
+        : sin(t * 2) * 1.5;
+
+    // Shadow aura
+    canvas.drawCircle(
+      Offset(size.x * 0.5, size.y * 0.4 + bob),
+      size.x * 0.4,
+      Paint()
+        ..color = const Color(0x22000044)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8),
+    );
+
+    // Body
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.x * 0.1,
+          size.y * 0.3 + bob,
+          size.x * 0.8,
+          size.y * 0.5,
+        ),
+        const Radius.circular(8),
+      ),
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+
+    // Head
+    canvas.drawCircle(
+      Offset(size.x * 0.5, size.y * 0.18 + bob),
+      size.x * 0.2,
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+
+    // Eyes
+    final eyeColor =
+        ai.state == EnemyState.chase || ai.state == EnemyState.attack
+        ? const Color(0xFF4444FF)
+        : const Color(0xFF222244);
+    canvas.drawCircle(
+      Offset(size.x * 0.4, size.y * 0.14 + bob),
+      3,
+      Paint()..color = eyeColor,
+    );
+    canvas.drawCircle(
+      Offset(size.x * 0.6, size.y * 0.14 + bob),
+      3,
+      Paint()..color = eyeColor,
+    );
+
+    // Glowing eyes in chase
+    if (ai.state == EnemyState.chase || ai.state == EnemyState.attack) {
+      final glow = Paint()
+        ..color = eyeColor.withValues(alpha: 0.5 + sin(t * 5) * 0.3)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(Offset(size.x * 0.4, size.y * 0.14 + bob), 2, glow);
+      canvas.drawCircle(Offset(size.x * 0.6, size.y * 0.14 + bob), 2, glow);
+    }
+
+    // Ears
+    final earPath = Path()
+      ..moveTo(size.x * 0.35, size.y * 0.1 + bob)
+      ..lineTo(size.x * 0.32, size.y * (-0.04) + bob)
+      ..lineTo(size.x * 0.42, size.y * 0.06 + bob)
+      ..close();
+    canvas.drawPath(earPath, Paint()..color = const Color(0xFF1A1A2E));
+    final earPath2 = Path()
+      ..moveTo(size.x * 0.65, size.y * 0.1 + bob)
+      ..lineTo(size.x * 0.68, size.y * (-0.04) + bob)
+      ..lineTo(size.x * 0.58, size.y * 0.06 + bob)
+      ..close();
+    canvas.drawPath(earPath2, Paint()..color = const Color(0xFF1A1A2E));
+
+    // Legs
+    final legSwing = ai.state == EnemyState.chase ? sin(t * 14) * 4 : 0.0;
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.15 + legSwing, size.y * 0.72, 5, size.y * 0.28),
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.35 - legSwing, size.y * 0.72, 5, size.y * 0.28),
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.55 + legSwing, size.y * 0.72, 5, size.y * 0.28),
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(size.x * 0.75 - legSwing, size.y * 0.72, 5, size.y * 0.28),
+      Paint()..color = const Color(0xFF1A1A2E),
+    );
+
+    // Tail
+    canvas.drawLine(
+      Offset(size.x * 0.85, size.y * 0.3 + bob),
+      Offset(size.x * 1.1, size.y * 0.15 + sin(t * 3) * 5),
+      Paint()
+        ..color = const Color(0xFF1A1A2E)
+        ..strokeWidth = 4,
+    );
+  }
+
+  void _renderSpiritWitch(Canvas canvas, double t, Color baseColor) {
+    final bob = sin(t * 3) * 2;
+
+    // Spirit glow
+    canvas.drawCircle(
+      Offset(size.x * 0.5, size.y * 0.3 + bob),
+      size.x * 0.5,
+      Paint()
+        ..color = const Color(0x224A2A5A)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 12),
+    );
+
+    // Floating robe
+    final robePath = Path()
+      ..moveTo(size.x * 0.1, size.y * 0.25 + bob)
+      ..lineTo(size.x * 0.9, size.y * 0.25 + bob)
+      ..lineTo(size.x * 1.05, size.y * 0.85 + bob)
+      ..lineTo(size.x * (-0.05), size.y * 0.85 + bob)
+      ..close();
+    canvas.drawPath(
+      robePath,
+      Paint()..color = baseColor.withValues(alpha: 0.7),
+    );
+
+    // Head
+    canvas.drawCircle(
+      Offset(size.x * 0.5, size.y * 0.14 + bob),
+      size.x * 0.16,
+      Paint()..color = const Color(0xFFE0D0E8),
+    );
+
+    // Hair (long, flowing)
+    final hairPaint = Paint()..color = const Color(0xFF2A1A3A);
+    canvas.drawLine(
+      Offset(size.x * 0.35, size.y * 0.08 + bob),
+      Offset(size.x * 0.2, size.y * 0.3 + sin(t * 2) * 5),
+      hairPaint..strokeWidth = 3,
+    );
+    canvas.drawLine(
+      Offset(size.x * 0.65, size.y * 0.08 + bob),
+      Offset(size.x * 0.8, size.y * 0.3 + sin(t * 2 + 1) * 5),
+      hairPaint..strokeWidth = 3,
+    );
+
+    // Eyes (glowing)
+    final eyeColor =
+        ai.state == EnemyState.chase || ai.state == EnemyState.attack
+        ? const Color(0xFFAA44FF)
+        : const Color(0xFF6644AA);
+    final eyeGlow = Paint()
+      ..color = eyeColor.withValues(alpha: 0.6 + sin(t * 3) * 0.3)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawCircle(Offset(size.x * 0.42, size.y * 0.12 + bob), 2.5, eyeGlow);
+    canvas.drawCircle(Offset(size.x * 0.58, size.y * 0.12 + bob), 2.5, eyeGlow);
+
+    // No legs (floating)
+    // Ghostly trail
+    final trailPaint = Paint()
+      ..color = baseColor.withValues(alpha: 0.15)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.x * 0.2,
+          size.y * 0.8 + bob,
+          size.x * 0.6,
+          size.y * 0.15,
+        ),
+        const Radius.circular(10),
+      ),
+      trailPaint,
+    );
   }
 }

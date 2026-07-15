@@ -17,17 +17,16 @@ import '../inventory/item.dart';
 import '../player/player.dart';
 import '../save/save_model.dart';
 import '../save/save_service.dart';
+import '../story/dialogue.dart';
 import '../world/damage_number.dart';
 import '../world/level.dart';
 import '../world/level_data.dart';
 import 'game_camera.dart';
 
-enum GamePhase { menu, playing, paused, gameOver, victory }
+enum GamePhase { menu, playing, paused, gameOver, victory, cutscene, dialogue }
 
-/// Root game class: owns the world, camera, player, level flow and
-/// exposes hooks used by UI overlays (plan sections 5 & 7).
 class DarkbladeGame extends FlameGame
-    with HasKeyboardHandlerComponents, HasCollisionDetection {
+    with HasKeyboardHandlerComponents, HasCollisionDetection, TapCallbacks {
   DarkbladeGame({required this.saveService});
 
   final SaveService saveService;
@@ -35,8 +34,6 @@ class DarkbladeGame extends FlameGame
 
   late Player player;
 
-  /// True once [player] has been created by the first level load; guards
-  /// UI widgets that may build while we are still in the main menu.
   bool playerReady = false;
 
   late GameCameraController cameraController;
@@ -46,38 +43,30 @@ class DarkbladeGame extends FlameGame
 
   GamePhase phase = GamePhase.menu;
 
-  /// On-screen touch controls (auto-enabled on Android/iOS, can be toggled
-  /// in Settings so tablets with keyboards or desktops can override it).
-  bool touchControlsEnabled = defaultTargetPlatform == TargetPlatform.android ||
+  bool touchControlsEnabled =
+      defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  /// Notifies the HUD about the active boss (health bar).
   final ValueNotifier<Boss?> activeBoss = ValueNotifier(null);
-
-  /// Simple toast queue consumed by the HUD.
   final ValueNotifier<String?> toast = ValueNotifier(null);
   Timer? _toastTimer;
+
+  bool _introPlayed = false;
 
   World get gameWorld => world;
 
   @override
   Color backgroundColor() =>
-      currentLevel?.definition.backgroundColor ??
-      const Color(0xFF101018);
+      currentLevel?.definition.backgroundColor ?? const Color(0xFF0A0612);
 
   @override
   Future<void> onLoad() async {
-    // The camera setter adds the component to the tree automatically.
-    camera = CameraComponent.withFixedResolution(
-      world: world,
-      width: GameConstants.viewWidth,
-      height: GameConstants.viewHeight,
-    );
+    camera = CameraComponent(world: world);
     cameraController = GameCameraController(camera);
 
-    // Start paused behind the main menu overlay.
     pauseEngine();
     overlays.add(OverlayIds.mainMenu);
+    AudioService.instance.playMusic('theme.wav');
   }
 
   // -------------------------------------------------------------- game flow
@@ -86,8 +75,9 @@ class DarkbladeGame extends FlameGame
     inventory.clear();
     inventory.addItem(Item.healthPotion, 3);
     defeatedBosses.clear();
+    _introPlayed = false;
     await _loadLevel(0);
-    _beginPlay();
+    _playIntro();
   }
 
   Future<void> continueGame() async {
@@ -99,6 +89,7 @@ class DarkbladeGame extends FlameGame
     defeatedBosses
       ..clear()
       ..addAll(save.defeatedBosses);
+    player.unlockDash = save.unlockDash;
     await _loadLevel(save.currentLevel);
     player.position = Vector2(save.playerX, save.playerY);
     player.respawnPoint = player.position.clone();
@@ -112,17 +103,52 @@ class DarkbladeGame extends FlameGame
     _beginPlay();
   }
 
+  void _playIntro() {
+    if (_introPlayed) {
+      _beginPlay();
+      return;
+    }
+    _introPlayed = true;
+    phase = GamePhase.cutscene;
+    overlays.remove(OverlayIds.mainMenu);
+    resumeEngine();
+    final cutscene = IntroCutscene(
+      onComplete: () {
+        _showChapterTitle();
+      },
+    );
+    camera.viewport.add(cutscene);
+  }
+
+  void _showChapterTitle() {
+    phase = GamePhase.cutscene;
+    final def = Levels.all[currentLevelIndex];
+    showToast(def.chapterTitle);
+    Future.delayed(const Duration(seconds: 2), () {
+      _beginPlay();
+    });
+  }
+
+  String _themeForLevel(int index) {
+    const themes = [
+      'village_theme.wav',
+      'forest_theme.wav',
+      'castle_theme.wav',
+      'abyss_theme.wav',
+    ];
+    return themes[index.clamp(0, themes.length - 1)];
+  }
+
   void _beginPlay() {
     phase = GamePhase.playing;
     overlays.remove(OverlayIds.mainMenu);
     overlays.remove(OverlayIds.gameOver);
     overlays.remove(OverlayIds.victory);
     resumeEngine();
-    AudioService.instance.playMusic('theme.mp3');
+    AudioService.instance.playMusic(_themeForLevel(currentLevelIndex));
   }
 
   Future<void> _loadLevel(int index) async {
-    // Tear down the previous level.
     world.removeAll(world.children.toList());
     activeBoss.value = null;
 
@@ -139,7 +165,6 @@ class DarkbladeGame extends FlameGame
     await world.add(player);
     playerReady = true;
 
-    // Unlock the portal if this level's boss was already defeated.
     if (defeatedBosses.contains(currentLevelIndex)) {
       level.boss?.removeFromParent();
       level.boss = null;
@@ -161,6 +186,7 @@ class DarkbladeGame extends FlameGame
       return;
     }
     await _loadLevel(currentLevelIndex + 1);
+    _showChapterTitle();
     saveProgress();
   }
 
@@ -180,7 +206,6 @@ class DarkbladeGame extends FlameGame
     phase = GamePhase.playing;
     player.respawn();
     activeBoss.value?.let((boss) {
-      // Reset an engaged boss when the player respawns.
       if (!boss.isRemoved && !boss.isDead) {
         boss.health.refill();
       }
@@ -202,6 +227,7 @@ class DarkbladeGame extends FlameGame
   void onBossActivated(Boss boss) {
     activeBoss.value = boss;
     shakeCamera(intensity: 6, duration: 0.8);
+    AudioService.instance.playMusic('boss_theme.wav');
   }
 
   void onBossDefeated(Boss boss) {
@@ -210,6 +236,7 @@ class DarkbladeGame extends FlameGame
     currentLevel?.portal?.unlocked = true;
     shakeCamera(intensity: 10, duration: 0.8);
     showToast('${boss.archetype.name} has fallen');
+    AudioService.instance.playMusic(_themeForLevel(currentLevelIndex));
     saveProgress();
     if (boss.isFinalBoss) {
       Future.delayed(const Duration(seconds: 2), _showVictory);
@@ -241,22 +268,24 @@ class DarkbladeGame extends FlameGame
       ..equipmentDefenseBonus = inventory.defenseBonus;
   }
 
-  /// Called by the inventory overlay after equip changes.
   void refreshEquipment() => _applyEquipmentBonuses();
 
   // ------------------------------------------------------------------- save
   void saveProgress() {
-    saveService.save(SaveModel(
-      currentLevel: currentLevelIndex,
-      playerX: player.respawnPoint.x,
-      playerY: player.respawnPoint.y,
-      hp: player.health.current,
-      mana: player.stats.mana,
-      stamina: player.stats.stamina,
-      souls: player.stats.souls,
-      inventoryJson: inventory.toJson(),
-      defeatedBosses: defeatedBosses.toList(),
-    ));
+    saveService.save(
+      SaveModel(
+        currentLevel: currentLevelIndex,
+        playerX: player.respawnPoint.x,
+        playerY: player.respawnPoint.y,
+        hp: player.health.current,
+        mana: player.stats.mana,
+        stamina: player.stats.stamina,
+        souls: player.stats.souls,
+        inventoryJson: inventory.toJson(),
+        defeatedBosses: defeatedBosses.toList(),
+        unlockDash: player.unlockDash,
+      ),
+    );
   }
 
   // --------------------------------------------------------------- niceties
@@ -265,11 +294,9 @@ class DarkbladeGame extends FlameGame
   }
 
   void spawnDamageNumber(Vector2 position, double amount, bool critical) {
-    world.add(DamageNumber(
-      position: position,
-      amount: amount,
-      critical: critical,
-    ));
+    world.add(
+      DamageNumber(position: position, amount: amount, critical: critical),
+    );
   }
 
   void showToast(String message) {
@@ -301,6 +328,24 @@ class DarkbladeGame extends FlameGame
     pauseEngine();
   }
 
+  // ----------------------------------------------------------- story hooks
+  void showDialogue(List<DialogueLine> lines, {VoidCallback? onComplete}) {
+    if (lines.isEmpty) {
+      onComplete?.call();
+      return;
+    }
+    phase = GamePhase.dialogue;
+    final seq = DialogueSequence(
+      lines: lines,
+      onComplete: () {
+        phase = GamePhase.playing;
+        resumeEngine();
+        onComplete?.call();
+      },
+    );
+    camera.viewport.add(seq);
+  }
+
   // ------------------------------------------------------------------ input
   @override
   KeyEventResult onKeyEvent(
@@ -310,11 +355,23 @@ class DarkbladeGame extends FlameGame
     super.onKeyEvent(event, keysPressed);
 
     if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.space ||
+          event.logicalKey == LogicalKeyboardKey.enter) {
+        // Advance cutscene or dialogue
+        if (phase == GamePhase.cutscene) {
+          _advanceCutscene();
+          return KeyEventResult.handled;
+        }
+        if (phase == GamePhase.dialogue) {
+          _advanceDialogue();
+          return KeyEventResult.handled;
+        }
+      }
+
       if (event.logicalKey == LogicalKeyboardKey.escape) {
         if (overlays.isActive(OverlayIds.inventory)) {
-          togglePause(); // closes inventory & resumes
-        } else if (phase == GamePhase.playing ||
-            phase == GamePhase.paused) {
+          togglePause();
+        } else if (phase == GamePhase.playing || phase == GamePhase.paused) {
           togglePause();
         }
         return KeyEventResult.handled;
@@ -330,6 +387,32 @@ class DarkbladeGame extends FlameGame
       player.controller.readKeyboard(keysPressed);
     }
     return KeyEventResult.handled;
+  }
+
+  void _advanceCutscene() {
+    final cutscene = camera.viewport.children
+        .query<IntroCutscene>()
+        .firstOrNull;
+    cutscene?.advance();
+  }
+
+  void _advanceDialogue() {
+    final dialogue = camera.viewport.children
+        .query<DialogueSequence>()
+        .firstOrNull;
+    dialogue?.advance();
+  }
+
+  @override
+  void onTapDown(TapDownEvent event) {
+    super.onTapDown(event);
+    if (phase == GamePhase.cutscene) {
+      _advanceCutscene();
+      event.handled = true;
+    } else if (phase == GamePhase.dialogue) {
+      _advanceDialogue();
+      event.handled = true;
+    }
   }
 
   @override

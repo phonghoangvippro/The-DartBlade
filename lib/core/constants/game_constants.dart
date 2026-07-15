@@ -1,4 +1,3 @@
-/// Fixed engine-level constants (resolution, render priorities, overlay ids).
 class GameConstants {
   GameConstants._();
 
@@ -6,7 +5,6 @@ class GameConstants {
   static const double viewHeight = 540;
   static const double tileSize = 32;
 
-  // Render priorities (z-order).
   static const int priorityBackground = -10;
   static const int priorityPlatform = 0;
   static const int priorityPickup = 5;
@@ -16,7 +14,6 @@ class GameConstants {
   static const int priorityFx = 30;
 }
 
-/// Identifiers for Flutter widget overlays registered on the [GameWidget].
 class OverlayIds {
   OverlayIds._();
 
@@ -26,4 +23,6 @@ class OverlayIds {
   static const String gameOver = 'game_over';
   static const String victory = 'victory';
   static const String inventory = 'inventory';
+  static const String dialogue = 'dialogue';
+  static const String chapterTitle = 'chapter_title';
 }

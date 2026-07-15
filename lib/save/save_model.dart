@@ -1,4 +1,3 @@
-/// Serializable snapshot of game progress (FR-031, FR-032; plan section 16).
 class SaveModel {
   SaveModel({
     required this.currentLevel,
@@ -10,6 +9,7 @@ class SaveModel {
     required this.souls,
     required this.inventoryJson,
     required this.defeatedBosses,
+    this.unlockDash = false,
     this.timestamp,
   });
 
@@ -22,10 +22,11 @@ class SaveModel {
   final int souls;
   final Map<String, dynamic> inventoryJson;
   final List<int> defeatedBosses;
+  final bool unlockDash;
   final DateTime? timestamp;
 
   Map<String, dynamic> toJson() => {
-        'version': 1,
+        'version': 2,
         'currentLevel': currentLevel,
         'playerX': playerX,
         'playerY': playerY,
@@ -35,6 +36,7 @@ class SaveModel {
         'souls': souls,
         'inventory': inventoryJson,
         'defeatedBosses': defeatedBosses,
+        'unlockDash': unlockDash,
         'timestamp': (timestamp ?? DateTime.now()).toIso8601String(),
       };
 
@@ -51,6 +53,7 @@ class SaveModel {
         defeatedBosses: List<int>.from(
             (json['defeatedBosses'] as List? ?? const [])
                 .map((e) => (e as num).toInt())),
+        unlockDash: (json['unlockDash'] as bool?) ?? false,
         timestamp: json['timestamp'] != null
             ? DateTime.tryParse(json['timestamp'] as String)
             : null,

@@ -1,9 +1,7 @@
 import 'dart:ui';
 
-/// Categories of items (FR-028..FR-030).
 enum ItemType { consumable, weapon, armor, keyItem }
 
-/// Immutable item definition. Instances in the inventory reference these.
 class Item {
   const Item({
     required this.id,
@@ -30,13 +28,12 @@ class Item {
   bool get isEquippable =>
       type == ItemType.weapon || type == ItemType.armor;
 
-  // ------------------------------------------------------------ definitions
   static const healthPotion = Item(
     id: 'health_potion',
     name: 'Health Potion',
     type: ItemType.consumable,
-    description: 'Restores 40 HP.',
-    healAmount: 40,
+    description: 'Restores 45 HP.',
+    healAmount: 45,
     color: Color(0xFFE05252),
     stackable: true,
   );
@@ -72,16 +69,42 @@ class Item {
     id: 'darkblade_shard',
     name: 'Darkblade Shard',
     type: ItemType.keyItem,
-    description: 'A fragment of the legendary blade.',
+    description: 'A fragment of the legendary Darkblade.',
     color: Color(0xFF7B2FF2),
   );
 
-  /// Registry used by the save system to restore items by id.
+  static const fallenKnightSoul = Item(
+    id: 'fallen_knight_soul',
+    name: 'Fallen Knight Soul',
+    type: ItemType.keyItem,
+    description: 'The tormented soul of a once-great knight.',
+    color: Color(0xFFFF4444),
+  );
+
+  static const treantHeart = Item(
+    id: 'treant_heart',
+    name: 'Elder Treant Heart',
+    type: ItemType.keyItem,
+    description: 'A pulsing heart of ancient wood and magic.',
+    color: Color(0xFF44AA44),
+  );
+
+  static const bloodCrown = Item(
+    id: 'blood_crown',
+    name: 'Blood Queen Crown',
+    type: ItemType.keyItem,
+    description: 'A crown stained with the blood of a thousand souls.',
+    color: Color(0xFFFF2266),
+  );
+
   static const Map<String, Item> registry = {
     'health_potion': healthPotion,
     'iron_sword': ironSword,
     'cursed_blade': cursedBlade,
     'knight_armor': knightArmor,
     'darkblade_shard': darkbladeShard,
+    'fallen_knight_soul': fallenKnightSoul,
+    'treant_heart': treantHeart,
+    'blood_crown': bloodCrown,
   };
 }

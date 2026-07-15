@@ -1,4 +1,3 @@
-/// All player animation / logic states (FR-009).
 enum PlayerState {
   idle,
   run,
@@ -19,7 +18,6 @@ extension PlayerStateX on PlayerState {
       this == PlayerState.attack2 ||
       this == PlayerState.attack3;
 
-  /// States during which movement input is ignored.
   bool get locksMovement =>
       isAttacking ||
       this == PlayerState.dash ||

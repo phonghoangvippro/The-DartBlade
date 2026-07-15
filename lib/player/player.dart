@@ -24,10 +24,7 @@ import 'player_stats.dart';
 /// with combo timer, dash i-frames + cooldown, stamina & mana costs.
 class Player extends Character with HasGameReference<DarkbladeGame> {
   Player({required super.position})
-      : super(
-          size: Vector2(34, 52),
-          maxHp: GameConfig.playerMaxHp,
-        ) {
+    : super(size: Vector2(34, 52), maxHp: GameConfig.playerMaxHp) {
     priority = GameConstants.priorityPlayer;
   }
 
@@ -54,6 +51,7 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
   late final Hurtbox _hurtbox;
 
   Vector2 respawnPoint = Vector2.zero();
+  bool unlockDash = false;
 
   @override
   String get faction => 'player';
@@ -95,6 +93,9 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
   // ------------------------------------------------------------------ update
   @override
   void update(double dt) {
+    if (game.phase != GamePhase.playing && game.phase != GamePhase.gameOver) {
+      return;
+    }
     super.update(dt);
     if (state == PlayerState.dead) {
       applyPhysics(dt);
@@ -139,14 +140,14 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
     }
 
     // Attack (FR-003, FR-004).
-    if (c.attackPressed &&
-        stats.spendStamina(GameConfig.attackStaminaCost)) {
+    if (c.attackPressed && stats.spendStamina(GameConfig.attackStaminaCost)) {
       _startAttack();
       return;
     }
 
-    // Dash (FR-005).
+    // Dash (FR-005) - unlocked after defeating Fallen Knight.
     if (c.dashPressed &&
+        unlockDash &&
         _dashCooldown <= 0 &&
         stats.spendStamina(GameConfig.dashStaminaCost)) {
       _startDash();
@@ -200,11 +201,13 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
       attack: stats.attack,
       skillMultiplier: GameConfig.skillMultiplier,
     );
-    game.gameWorld.add(BladeWave(
-      position: absoluteCenter + Vector2(facing * 24, -4),
-      direction: facing,
-      damage: result.amount,
-    ));
+    game.gameWorld.add(
+      BladeWave(
+        position: absoluteCenter + Vector2(facing * 24, -4),
+        direction: facing,
+        damage: result.amount,
+      ),
+    );
     AudioService.instance.playSfx('skill.wav');
   }
 
@@ -214,7 +217,8 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
       case PlayerState.attack2:
       case PlayerState.attack3:
         // Hit window (FR-010): active only between hitStart..hitEnd.
-        final active = _stateTimer >= GameConfig.attackHitStart &&
+        final active =
+            _stateTimer >= GameConfig.attackHitStart &&
             _stateTimer <= GameConfig.attackHitEnd;
         if (active && !_meleeHitbox.isActive) _meleeHitbox.activate();
         if (!active && _meleeHitbox.isActive) _meleeHitbox.deactivate();
@@ -246,8 +250,10 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
   void _postPhysicsState() {
     if (state.locksMovement || state == PlayerState.block) return;
     if (!isOnGround) {
-      _setState(velocity.y < 0 ? PlayerState.jump : PlayerState.fall,
-          keepTimer: true);
+      _setState(
+        velocity.y < 0 ? PlayerState.jump : PlayerState.fall,
+        keepTimer: true,
+      );
     } else if (velocity.x.abs() > 5) {
       _setState(PlayerState.run, keepTimer: true);
     } else {
@@ -259,8 +265,10 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
     // Mirror the hitbox to the facing side.
     _meleeHitbox.position = facing > 0
         ? Vector2(size.x, (size.y - GameConfig.meleeRangeY) / 2)
-        : Vector2(-GameConfig.meleeRangeX,
-            (size.y - GameConfig.meleeRangeY) / 2);
+        : Vector2(
+            -GameConfig.meleeRangeX,
+            (size.y - GameConfig.meleeRangeY) / 2,
+          );
   }
 
   void _setState(PlayerState next, {bool keepTimer = false}) {
@@ -274,7 +282,8 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
   void receiveDamage(DamageInfo info) {
     if (isDead || isInvincible) return;
 
-    final blocking = state == PlayerState.block &&
+    final blocking =
+        state == PlayerState.block &&
         // Must face the attack to block it.
         (info.knockbackDirection > 0 ? facing < 0 : facing > 0);
 
@@ -308,8 +317,7 @@ class Player extends Character with HasGameReference<DarkbladeGame> {
     _meleeHitbox.deactivate();
     velocity.setZero();
     // Souls-like penalty: lose part of your souls (FR-007).
-    stats.souls =
-        (stats.souls * GameConfig.soulsLossOnDeathFactor).floor();
+    stats.souls = (stats.souls * GameConfig.soulsLossOnDeathFactor).floor();
     AudioService.instance.playSfx('death.wav');
     game.onPlayerDied();
   }

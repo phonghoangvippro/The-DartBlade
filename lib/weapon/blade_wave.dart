@@ -7,8 +7,6 @@ import '../combat/damage.dart';
 import '../core/config/game_config.dart';
 import '../core/constants/game_constants.dart';
 
-/// The player's ranged skill (FR-018): a crescent of dark energy that flies
-/// horizontally and damages the first enemy it touches.
 class BladeWave extends PositionComponent {
   BladeWave({
     required Vector2 position,
@@ -16,6 +14,8 @@ class BladeWave extends PositionComponent {
     required this.damage,
     this.faction = 'player',
     this.maxDistance = 380,
+    this.color = const Color(0xFF7B2FF2),
+    this.velocityY = 0,
   }) : super(
           position: position,
           size: Vector2(34, 26),
@@ -28,6 +28,8 @@ class BladeWave extends PositionComponent {
   final double damage;
   final String faction;
   final double maxDistance;
+  final Color color;
+  double velocityY;
 
   double _travelled = 0;
   late final AttackHitbox _hitbox;
@@ -52,6 +54,7 @@ class BladeWave extends PositionComponent {
     super.update(dt);
     final step = GameConfig.skillProjectileSpeed * dt;
     position.x += direction * step;
+    if (velocityY != 0) position.y += velocityY * dt;
     _travelled += step;
     if (_travelled >= maxDistance) {
       removeFromParent();
@@ -61,9 +64,9 @@ class BladeWave extends PositionComponent {
   @override
   void render(Canvas canvas) {
     final glow = Paint()
-      ..color = const Color(0x807B2FF2)
+      ..color = color.withValues(alpha: 0.5)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    final core = Paint()..color = const Color(0xFFB388FF);
+    final core = Paint()..color = color;
     final path = Path()
       ..moveTo(direction > 0 ? 0 : size.x, 0)
       ..quadraticBezierTo(
